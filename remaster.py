@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.02.4
+Version: 0.02.5
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files.
 """
@@ -277,10 +277,35 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
         print(f"Using existing ISO: {iso_filename}")
     
     print("Extracting MBR template (boot_hybrid.img)...")
-    run_command(f"dd if={iso_filename} of=boot_hybrid.img bs=1M count=1", "Extracting MBR template")
+    run_command(f"dd if={iso_filename} of=boot_hybrid.img bs=1 count=432", "Extracting MBR template")
     
     print("Extracting EFI partition (efi.img)...")
-    run_command(f"dd if={iso_filename} of=efi.img bs=512 skip=6608 count=11264", "Extracting EFI partition")
+    # For Ubuntu 22.04+, we need to find the EFI partition location using fdisk
+    try:
+        fdisk_result = subprocess.run(f"fdisk -l {iso_filename}", shell=True, capture_output=True, text=True)
+        if fdisk_result.returncode == 0:
+            fdisk_out = fdisk_result.stdout
+            efi_lines = [l for l in fdisk_out.splitlines() if 'EFI System' in l]
+            if efi_lines:
+                efi_line = efi_lines[0]
+                parts = efi_line.split()
+                if len(parts) >= 3:
+                    efi_start, efi_end = int(parts[1]), int(parts[2])
+                    efi_count = efi_end - efi_start + 1
+                    print(f"Found EFI partition: sectors {efi_start}-{efi_end} (count: {efi_count})")
+                    run_command(f"dd if={iso_filename} of=efi.img bs=512 skip={efi_start} count={efi_count}", "Extracting EFI partition")
+                else:
+                    print("Could not parse EFI partition info, using fallback method")
+                    run_command(f"dd if={iso_filename} of=efi.img bs=512 skip=6608 count=11264", "Extracting EFI partition (fallback)")
+            else:
+                print("No EFI System partition found, using fallback method")
+                run_command(f"dd if={iso_filename} of=efi.img bs=512 skip=6608 count=11264", "Extracting EFI partition (fallback)")
+        else:
+            print("fdisk failed, using fallback method")
+            run_command(f"dd if={iso_filename} of=efi.img bs=512 skip=6608 count=11264", "Extracting EFI partition (fallback)")
+    except Exception as e:
+        print(f"Error extracting EFI partition: {e}, using fallback method")
+        run_command(f"dd if={iso_filename} of=efi.img bs=512 skip=6608 count=11264", "Extracting EFI partition (fallback)")
     
     work_dir = "working_dir"
     ensure_clean_dir(work_dir)
@@ -300,25 +325,31 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     efi_boot_path = os.path.join(work_dir, "EFI", "boot", "bootx64.efi")
     
     if os.path.exists(eltorito_path) and os.path.exists(efi_boot_path):
-        # Full hybrid boot with both BIOS and EFI
+        # Ubuntu 22.04+ hybrid boot with proper GPT structure
         xorriso_cmd = (
             f"xorriso -as mkisofs -r -V 'NosanaAOS' -o {new_iso} "
-            f"-J -l -c boot.catalog "
-            f"-b boot/grub/i386-pc/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table "
-            f"-eltorito-alt-boot -e EFI/boot/bootx64.efi -no-emul-boot "
-            f"-append_partition 2 0xef efi.img "
-            f"-partition_cyl_align all "
-            f"-isohybrid-mbr boot_hybrid.img "
-            f"-isohybrid-gpt-basdat "
+            f"--grub2-mbr boot_hybrid.img "
+            f"-partition_offset 16 "
+            f"--mbr-force-bootable "
+            f"-append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b efi.img "
+            f"-appended_part_as_gpt "
+            f"-iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7 "
+            f"-c '/boot.catalog' "
+            f"-b '/boot/grub/i386-pc/eltorito.img' "
+            f"-no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info "
+            f"-eltorito-alt-boot "
+            f"-e '--interval:appended_partition_2:::' "
+            f"-no-emul-boot "
             f"{work_dir}"
         )
     elif os.path.exists(eltorito_path):
-        # BIOS boot only
+        # BIOS boot only with MBR
         xorriso_cmd = (
             f"xorriso -as mkisofs -r -V 'NosanaAOS' -o {new_iso} "
             f"-J -l -c boot.catalog "
             f"-b boot/grub/i386-pc/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table "
-            f"-isohybrid-mbr boot_hybrid.img "
+            f"--grub2-mbr boot_hybrid.img "
+            f"--mbr-force-bootable "
             f"{work_dir}"
         )
     else:
@@ -344,7 +375,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.4")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.5")
     print("==================================================")
     
     if not check_and_install_dependencies():
