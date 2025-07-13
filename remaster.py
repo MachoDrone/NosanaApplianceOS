@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.00.4
+Version: 0.00.5
 
 Purpose: Downloads Ubuntu 24.04.2 Live Server ISO for remastering purposes.
 Expectations: 
@@ -10,7 +10,7 @@ Expectations:
 - Always ends with ls -tralsh command
 - Will be frequently edited with version increments
 - Handles missing dependencies gracefully
-- Auto-installs all required dependencies
+- Auto-installs all required dependencies with no user interaction
 """
 
 import os
@@ -44,25 +44,52 @@ def install_system_dependencies():
     return True
 
 def install_python_dependency(package_name):
-    """Install a Python package using pip3"""
+    """Install a Python package using multiple methods"""
     print(f"Installing {package_name}...")
     
-    # Try pip3 install
-    if run_command(f"pip3 install {package_name}", f"Installing {package_name}"):
+    # Method 1: Try pip3 install
+    if run_command(f"pip3 install {package_name}", f"Installing {package_name} (pip3)"):
         print(f"✓ {package_name} installed successfully")
         return True
     
-    # Fallback to pip install
-    if run_command(f"pip install {package_name}", f"Installing {package_name} (fallback)"):
+    # Method 2: Try pip install
+    if run_command(f"pip install {package_name}", f"Installing {package_name} (pip)"):
         print(f"✓ {package_name} installed successfully")
         return True
     
-    # Try with --user flag
+    # Method 3: Try with --user flag
     if run_command(f"pip3 install --user {package_name}", f"Installing {package_name} (user)"):
         print(f"✓ {package_name} installed successfully")
         return True
     
-    print(f"✗ Failed to install {package_name}")
+    # Method 4: Try with sudo
+    if run_command(f"sudo pip3 install {package_name}", f"Installing {package_name} (sudo pip3)"):
+        print(f"✓ {package_name} installed successfully")
+        return True
+    
+    # Method 5: Try apt-get for Python packages
+    apt_package_map = {
+        "requests": "python3-requests",
+        "tqdm": "python3-tqdm"
+    }
+    
+    if package_name in apt_package_map:
+        apt_package = apt_package_map[package_name]
+        if run_command(f"sudo apt-get install -y {apt_package}", f"Installing {package_name} (apt-get)"):
+            print(f"✓ {package_name} installed successfully via apt-get")
+            return True
+    
+    # Method 6: Try with python3 -m pip
+    if run_command(f"python3 -m pip install {package_name}", f"Installing {package_name} (python3 -m pip)"):
+        print(f"✓ {package_name} installed successfully")
+        return True
+    
+    # Method 7: Try with python3 -m pip --user
+    if run_command(f"python3 -m pip install --user {package_name}", f"Installing {package_name} (python3 -m pip --user)"):
+        print(f"✓ {package_name} installed successfully")
+        return True
+    
+    print(f"✗ All installation methods failed for {package_name}")
     return False
 
 def check_and_install_dependencies():
@@ -82,14 +109,28 @@ def check_and_install_dependencies():
         except ImportError:
             print(f"✗ {module_name} not found, installing...")
             if not install_python_dependency(module_name):
-                print(f"Failed to install {module_name}. Please install manually: pip3 install {module_name}")
-                return False
+                print(f"CRITICAL: All installation methods failed for {module_name}")
+                print("Attempting emergency installation...")
+                
+                # Emergency method: Try to install via apt-get with force
+                apt_package_map = {
+                    "requests": "python3-requests",
+                    "tqdm": "python3-tqdm"
+                }
+                
+                if module_name in apt_package_map:
+                    apt_package = apt_package_map[module_name]
+                    if not run_command(f"sudo apt-get install -y --force-yes {apt_package}", f"Emergency install {module_name}"):
+                        print(f"EMERGENCY INSTALLATION FAILED for {module_name}")
+                        return False
+                else:
+                    return False
     
     print("All dependencies ready!")
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.00.4")
+    print("Ubuntu ISO Remastering Tool - Version 0.00.5")
     print("=" * 50)
     
     # Check and install dependencies
