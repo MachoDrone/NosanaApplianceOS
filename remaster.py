@@ -242,7 +242,7 @@ def verify_hello_files(new_iso):
         print(f"FAIL: Error checking HelloNOS.BOOT: {e}")
 
 def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
-    iso_url = "https://ubuntu.mirror.garr.it/releases/noble/ubuntu-24.04.2-live-server-amd64.iso"
+    iso_url = "https://mirror.pilotfiber.com/ubuntu-iso/24.04.2/ubuntu-24.04.2-live-server-amd64.iso"
     iso_filename = "ubuntu-24.04.2-live-server-amd64.iso"
     
     temp_paths = ["working_dir", "work_2204", "boot_hybrid.img", "efi.img", "_iso_mount"]
