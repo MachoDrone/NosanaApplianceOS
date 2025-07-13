@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.01.3
+Version: 0.01.4
 
-Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hellow to inject test files.
+Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject test files.
 """
 
 import os
@@ -65,14 +65,18 @@ def check_file_exists(filename, min_size_mb=100):
 def cleanup(temp_paths):
     for path in temp_paths:
         if os.path.isdir(path):
-            shutil.rmtree(path, ignore_errors=True)
+            try:
+                shutil.rmtree(path, ignore_errors=True)
+            except Exception:
+                print(f"shutil.rmtree failed for {path}, trying sudo rm -rf")
+                run_command(f"sudo rm -rf {path}", f"sudo rm -rf {path}")
         elif os.path.isfile(path):
             try:
                 os.remove(path)
             except Exception:
                 pass
 
-def inject_hellow_files(work_dir, efi_img, mbr_img):
+def inject_hello_files(work_dir, efi_img, mbr_img):
     # HelloNOS.OPT in opt dir
     opt_dir = os.path.join(work_dir, "opt")
     os.makedirs(opt_dir, exist_ok=True)
@@ -86,7 +90,7 @@ def inject_hellow_files(work_dir, efi_img, mbr_img):
         f.write(b"Hello from HelloNOS.BOOT!\n")
     print("Injected HelloNOS.ESP, HelloNOS.BOOT, HelloNOS.OPT test files.")
 
-def remaster_ubuntu_2204(dc_disable_cleanup, inject_hellow):
+def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     import requests
     from tqdm import tqdm
     # ISO and output names
@@ -143,8 +147,8 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hellow):
         run_command(f"xorriso -osirrox on -indev {iso_name} -extract / {work_dir}", f"Extracting ISO file tree to {work_dir}")
         print("You can now customize the extracted ISO in:", work_dir)
         # Inject test files if requested
-        if inject_hellow:
-            inject_hellow_files(work_dir, "efi.img", "boot_hybrid.img")
+        if inject_hello:
+            inject_hello_files(work_dir, "efi.img", "boot_hybrid.img")
         # Rebuild ISO
         xorriso_cmd = (
             f"xorriso -as mkisofs -r "
@@ -178,12 +182,12 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hellow):
             cleanup(temp_paths)
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.01.3")
+    print("Ubuntu ISO Remastering Tool - Version 0.01.4")
     print("=" * 50)
     dc_disable_cleanup = "-dc" in sys.argv
-    inject_hellow = "-hellow" in sys.argv
+    inject_hello = "-hello" in sys.argv
     check_and_install_dependencies()
-    remaster_ubuntu_2204(dc_disable_cleanup, inject_hellow)
+    remaster_ubuntu_2204(dc_disable_cleanup, inject_hello)
     print("\n" + "=" * 50)
     print("Directory listing:")
     subprocess.run(["ls", "-tralsh"])
