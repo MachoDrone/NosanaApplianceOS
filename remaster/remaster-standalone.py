@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version
-Version: 0.02.7-standalone-debug-v5
+Version: 0.02.7-standalone-working-v6
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
@@ -17,7 +17,7 @@ AUTOINSTALL_USER_DATA = """#cloud-config
 autoinstall:
   version: 1
   
-  # Test basic autoinstall first - only interactive sections should show
+  # Interactive sections - user can configure these
   interactive-sections:
     - locale
     - keyboard
@@ -27,6 +27,17 @@ autoinstall:
     - identity
     - ubuntu-pro
     - drivers
+  
+  # Proxy configuration - enable mirror testing
+  apt:
+    geoip: true
+    preserve_sources_list: false
+    primary:
+      - arches: [amd64, i386]
+        uri: http://archive.ubuntu.com/ubuntu
+    security:
+      - arches: [amd64, i386]
+        uri: http://security.ubuntu.com/ubuntu
   
   # Force these specific values (should skip their screens entirely)
   ssh:
@@ -40,7 +51,7 @@ autoinstall:
   updates: security
   
   late-commands:
-    - echo "AUTOINSTALL WORKED - SSH disabled, no snaps" > /target/var/log/autoinstall-success.log
+    - echo "AUTOINSTALL SUCCESS - SSH disabled, no snaps, proxy testing enabled" > /target/var/log/autoinstall-success.log
     - systemctl --root=/target disable snapd.service snapd.socket || true
     
   shutdown: reboot
@@ -495,7 +506,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-debug-v5")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-working-v6")
     print("==================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
