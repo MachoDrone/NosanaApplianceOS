@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.00.8
+Version: 0.00.9
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup.
 """
@@ -81,79 +81,89 @@ def remaster_ubuntu_2204(dc_disable_cleanup):
     new_iso = "NosanaAOS-0.24.04.2.iso"
     work_dir = os.path.abspath("work_2204")
     os.makedirs(work_dir, exist_ok=True)
-    temp_paths = [work_dir, "boot_hybrid.img", "efi.img"]
-
-    # Download ISO if needed
-    if not check_file_exists(iso_name):
-        print(f"Downloading: {iso_url}")
-        r = requests.get(iso_url, stream=True)
-        if r.status_code != 200:
-            print(f"ERROR: Failed to download ISO. HTTP status code: {r.status_code}")
-            print("Aborting remaster process.")
-            return
-        total = int(r.headers.get('content-length', 0))
-        with open(iso_name, 'wb') as f, tqdm(desc=iso_name, total=total, unit='iB', unit_scale=True) as pbar:
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
-                    pbar.update(len(chunk))
-        print(f"Download completed: {iso_name}")
-        # Check file size after download
-        if not check_file_exists(iso_name):
-            print(f"ERROR: Downloaded ISO is too small or invalid. Aborting remaster process.")
-            return
-    else:
-        print(f"Using existing ISO: {iso_name}")
-
-    # Extract MBR template
-    run_command(f"dd if={iso_name} bs=1 count=432 of=boot_hybrid.img", "Extracting MBR template (boot_hybrid.img)")
-    # Find EFI partition start and size
+    temp_paths = [work_dir, "boot_hybrid.img", "efi.img", iso_name]
     try:
-        fdisk_out = subprocess.check_output(f"fdisk -l {iso_name}", shell=True, text=True)
-        efi_line = next(l for l in fdisk_out.splitlines() if 'EFI System' in l)
-        parts = efi_line.split()
-        efi_start, efi_end = int(parts[1]), int(parts[2])
-        efi_count = efi_end - efi_start + 1
+        # Download ISO if needed
+        if not check_file_exists(iso_name):
+            print(f"Downloading: {iso_url}")
+            r = requests.get(iso_url, stream=True)
+            if r.status_code != 200:
+                print(f"ERROR: Failed to download ISO. HTTP status code: {r.status_code}")
+                print("Aborting remaster process.")
+                if not dc_disable_cleanup:
+                    cleanup(temp_paths)
+                return
+            total = int(r.headers.get('content-length', 0))
+            with open(iso_name, 'wb') as f, tqdm(desc=iso_name, total=total, unit='iB', unit_scale=True) as pbar:
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+                        pbar.update(len(chunk))
+            print(f"Download completed: {iso_name}")
+            # Check file size after download
+            if not check_file_exists(iso_name):
+                print(f"ERROR: Downloaded ISO is too small or invalid. Aborting remaster process.")
+                if not dc_disable_cleanup:
+                    cleanup(temp_paths)
+                return
+        else:
+            print(f"Using existing ISO: {iso_name}")
+
+        # Extract MBR template
+        run_command(f"dd if={iso_name} bs=1 count=432 of=boot_hybrid.img", "Extracting MBR template (boot_hybrid.img)")
+        # Find EFI partition start and size
+        try:
+            fdisk_out = subprocess.check_output(f"fdisk -l {iso_name}", shell=True, text=True)
+            efi_line = next(l for l in fdisk_out.splitlines() if 'EFI System' in l)
+            parts = efi_line.split()
+            efi_start, efi_end = int(parts[1]), int(parts[2])
+            efi_count = efi_end - efi_start + 1
+        except Exception as e:
+            print(f"ERROR: Could not parse EFI partition from fdisk output: {e}")
+            print("Aborting remaster process.")
+            if not dc_disable_cleanup:
+                cleanup(temp_paths)
+            return
+        # Extract EFI partition
+        run_command(f"dd if={iso_name} bs=512 skip={efi_start} count={efi_count} of=efi.img", "Extracting EFI partition (efi.img)")
+        # Extract ISO file tree
+        run_command(f"xorriso -osirrox on -indev {iso_name} -extract / {work_dir}", f"Extracting ISO file tree to {work_dir}")
+        print("You can now customize the extracted ISO in:", work_dir)
+        # (Customization placeholder)
+        # Rebuild ISO
+        xorriso_cmd = (
+            f"xorriso -as mkisofs -r "
+            f"-V 'NosanaAOS 0.24.04.2 (EFIBIOS)' "
+            f"-o {new_iso} "
+            f"--grub2-mbr boot_hybrid.img "
+            f"-partition_offset 16 "
+            f"--mbr-force-bootable "
+            f"-append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b efi.img "
+            f"-appended_part_as_gpt "
+            f"-iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7 "
+            f"-c '/boot.catalog' "
+            f"-b '/boot/grub/i386-pc/eltorito.img' "
+            f"-no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info "
+            f"-eltorito-alt-boot "
+            f"-e '--interval:appended_partition_2:::' "
+            f"-no-emul-boot "
+            f"{work_dir}"
+        )
+        run_command(xorriso_cmd, f"Rebuilding ISO as {new_iso}")
+        print(f"ISO remaster complete: {new_iso}")
+        # Cleanup
+        if not dc_disable_cleanup:
+            print("Cleaning up temp files...")
+            cleanup(temp_paths)
+        else:
+            print("-dc set: Not cleaning up temp files.")
     except Exception as e:
-        print(f"ERROR: Could not parse EFI partition from fdisk output: {e}")
-        print("Aborting remaster process.")
-        return
-    # Extract EFI partition
-    run_command(f"dd if={iso_name} bs=512 skip={efi_start} count={efi_count} of=efi.img", "Extracting EFI partition (efi.img)")
-    # Extract ISO file tree
-    run_command(f"xorriso -osirrox on -indev {iso_name} -extract / {work_dir}", f"Extracting ISO file tree to {work_dir}")
-    print("You can now customize the extracted ISO in:", work_dir)
-    # (Customization placeholder)
-    # Rebuild ISO
-    xorriso_cmd = (
-        f"xorriso -as mkisofs -r "
-        f"-V 'NosanaAOS 0.24.04.2 (EFIBIOS)' "
-        f"-o {new_iso} "
-        f"--grub2-mbr boot_hybrid.img "
-        f"-partition_offset 16 "
-        f"--mbr-force-bootable "
-        f"-append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b efi.img "
-        f"-appended_part_as_gpt "
-        f"-iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7 "
-        f"-c '/boot.catalog' "
-        f"-b '/boot/grub/i386-pc/eltorito.img' "
-        f"-no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info "
-        f"-eltorito-alt-boot "
-        f"-e '--interval:appended_partition_2:::' "
-        f"-no-emul-boot "
-        f"{work_dir}"
-    )
-    run_command(xorriso_cmd, f"Rebuilding ISO as {new_iso}")
-    print(f"ISO remaster complete: {new_iso}")
-    # Cleanup
-    if not dc_disable_cleanup:
-        print("Cleaning up temp files...")
-        cleanup(temp_paths)
-    else:
-        print("-dc set: Not cleaning up temp files.")
+        print(f"FATAL ERROR: {e}")
+        if not dc_disable_cleanup:
+            cleanup(temp_paths)
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.00.8")
+    print("Ubuntu ISO Remastering Tool - Version 0.00.9")
     print("=" * 50)
     dc_disable_cleanup = "-dc" in sys.argv
     check_and_install_dependencies()
