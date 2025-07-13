@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.00.3
+Version: 0.00.4
 
 Purpose: Downloads Ubuntu 24.04.2 Live Server ISO for remastering purposes.
 Expectations: 
@@ -17,46 +17,79 @@ import os
 import sys
 import subprocess
 
-def install_dependency(package_name, pip_name=None):
-    """Install a Python package using pip3"""
-    if pip_name is None:
-        pip_name = package_name
-    
-    print(f"Installing {package_name}...")
+def run_command(cmd, description=""):
+    """Run a command and return success status"""
+    if description:
+        print(f"{description}...")
     try:
-        # Try to install using pip3
-        result = subprocess.run([sys.executable, "-m", "pip", "install", pip_name, "-y"], 
-                              capture_output=True, text=True, check=True)
-        print(f"✓ {package_name} installed successfully")
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
         return True
     except subprocess.CalledProcessError as e:
-        print(f"✗ Failed to install {package_name}: {e}")
+        print(f"✗ Failed: {e}")
         return False
+
+def install_system_dependencies():
+    """Install system-level dependencies"""
+    print("Installing system dependencies...")
+    
+    # Update package list
+    if not run_command("sudo apt-get update", "Updating package list"):
+        return False
+    
+    # Install python3-pip if not available
+    if not run_command("sudo apt-get install -y python3-pip", "Installing python3-pip"):
+        return False
+    
+    print("✓ System dependencies installed")
+    return True
+
+def install_python_dependency(package_name):
+    """Install a Python package using pip3"""
+    print(f"Installing {package_name}...")
+    
+    # Try pip3 install
+    if run_command(f"pip3 install {package_name}", f"Installing {package_name}"):
+        print(f"✓ {package_name} installed successfully")
+        return True
+    
+    # Fallback to pip install
+    if run_command(f"pip install {package_name}", f"Installing {package_name} (fallback)"):
+        print(f"✓ {package_name} installed successfully")
+        return True
+    
+    # Try with --user flag
+    if run_command(f"pip3 install --user {package_name}", f"Installing {package_name} (user)"):
+        print(f"✓ {package_name} installed successfully")
+        return True
+    
+    print(f"✗ Failed to install {package_name}")
+    return False
 
 def check_and_install_dependencies():
     """Check and install all required dependencies"""
     print("Checking dependencies...")
     
-    dependencies = [
-        ("requests", "requests"),
-        ("tqdm", "tqdm")
-    ]
+    # First ensure system dependencies are available
+    if not install_system_dependencies():
+        return False
     
-    for module_name, pip_name in dependencies:
+    dependencies = ["requests", "tqdm"]
+    
+    for module_name in dependencies:
         try:
             __import__(module_name)
             print(f"✓ {module_name} already installed")
         except ImportError:
             print(f"✗ {module_name} not found, installing...")
-            if not install_dependency(module_name, pip_name):
-                print(f"Failed to install {module_name}. Please install manually: pip3 install {pip_name}")
+            if not install_python_dependency(module_name):
+                print(f"Failed to install {module_name}. Please install manually: pip3 install {module_name}")
                 return False
     
     print("All dependencies ready!")
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.00.3")
+    print("Ubuntu ISO Remastering Tool - Version 0.00.4")
     print("=" * 50)
     
     # Check and install dependencies

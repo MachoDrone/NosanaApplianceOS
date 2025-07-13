@@ -3,7 +3,7 @@
 ## Purpose
 `remaster.py` is a Python script designed for downloading and preparing Ubuntu ISO files for remastering purposes. The script provides a streamlined workflow for obtaining Ubuntu Live Server ISOs with live download progress monitoring.
 
-## Current Version: 0.00.3
+## Current Version: 0.00.4
 
 ## Core Expectations
 1. **Version Display**: Always displays the current version number before any sudo password prompts
@@ -13,11 +13,14 @@
 5. **Frequent Updates**: Designed to be edited frequently with version increments
 6. **Graceful Error Handling**: Handles missing dependencies and crashes with cleanup
 7. **Auto-Dependency Management**: Automatically checks and installs all required dependencies
+8. **System Package Management**: Uses apt-get for system dependencies and pip for Python packages
 
 ## Current Features
 - Downloads Ubuntu 24.04.2 Live Server AMD64 ISO
 - Live progress bar using tqdm library
-- Automatic dependency checking and installation
+- Automatic system dependency installation (python3-pip)
+- Automatic Python package installation (requests, tqdm)
+- Multiple installation fallback methods
 - Error handling for network issues
 - Automatic directory listing at completion
 - Crash cleanup with sudo -k and ls -tralsh
@@ -26,8 +29,14 @@
 
 ## Dependencies (Auto-Installed)
 - Python 3
-- requests library (auto-installed)
-- tqdm library (auto-installed)
+- python3-pip (auto-installed via apt-get)
+- requests library (auto-installed via pip)
+- tqdm library (auto-installed via pip)
+
+## Installation Methods Used
+1. **System packages**: `sudo apt-get install -y python3-pip`
+2. **Python packages**: `pip3 install package_name`
+3. **Fallback methods**: `pip install`, `pip3 install --user`
 
 ## Usage
 ```bash
@@ -51,6 +60,7 @@ This document will be updated as `remaster.py` evolves to include:
 - **0.00.1**: Initial version with tqdm progress bar
 - **0.00.2**: Added graceful tqdm handling, crash cleanup with sudo -k
 - **0.00.3**: Added automatic dependency checking and installation
+- **0.00.4**: Improved dependency installation with system package management and fallback methods
 
 ## File Location
 - Main script: `remaster.py`
