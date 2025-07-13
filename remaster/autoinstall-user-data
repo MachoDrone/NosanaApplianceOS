@@ -1,0 +1,73 @@
+#cloud-config
+autoinstall:
+  version: 1
+  
+  # Allow interactive selection for these components
+  interactive-sections:
+    - locale
+    - keyboard
+    - network
+    - proxy
+    - storage
+    - identity
+    - ubuntu-pro
+    - drivers
+  
+  # Force specific choices
+  locale: null  # Will be interactive
+  keyboard: null  # Will be interactive
+  
+  # Network configuration - interactive but with sensible defaults
+  network:
+    version: 2
+    
+  # Proxy configuration - interactive
+  proxy: null
+  
+  # Storage configuration - interactive
+  storage:
+    layout:
+      name: lvm
+  
+  # Identity configuration - interactive (user will input name, username, etc.)
+  identity: null
+  
+  # SSH configuration - force NO OpenSSH server installation
+  ssh:
+    install-server: false
+    allow-pw: false
+    authorized-keys: []
+  
+  # Package selection - force Ubuntu Server minimized
+  packages:
+    - ubuntu-server-minimal
+  
+  # Snap configuration - force NO featured server snaps
+  snaps: []
+  
+  # Drivers configuration - force search for third-party drivers
+  drivers:
+    install: true
+  
+  # Ubuntu Pro configuration - default to skip but allow interactive choice
+  ubuntu-pro:
+    token: null  # Will be interactive with "Skip for now" default
+  
+  # Disable automatic updates during installation
+  updates: security
+  
+  # Late commands to ensure minimized installation
+  late-commands:
+    - echo 'Installation completed with forced minimized server configuration'
+    - systemctl disable snapd.service || true
+    - systemctl disable snapd.socket || true
+    - systemctl mask snapd.service || true
+    - systemctl mask snapd.socket || true
+  
+  # Error commands for troubleshooting
+  error-commands:
+    - echo 'Installation failed, check logs'
+    - journalctl -n 50
+  
+  # Reboot after installation
+  shutdown: reboot

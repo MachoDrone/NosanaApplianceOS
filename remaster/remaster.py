@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.02.6
+Version: 0.02.7
 
-Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files.
+Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 """
 
 import os
@@ -118,6 +118,62 @@ def ensure_clean_dir(path):
         subprocess.run(["sudo", "rm", "-rf", path])
     os.makedirs(path, exist_ok=True)
     subprocess.run(["sudo", "chown", f"{os.getuid()}:{os.getgid()}", path])
+
+def inject_autoinstall_files(work_dir):
+    print("Injecting autoinstall configuration...")
+    
+    # Create server directory for autoinstall files
+    server_dir = os.path.join(work_dir, "server")
+    os.makedirs(server_dir, exist_ok=True)
+    
+    # Copy autoinstall files
+    import shutil
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Copy user-data file
+    user_data_src = os.path.join(script_dir, "autoinstall-user-data")
+    user_data_dst = os.path.join(server_dir, "user-data")
+    if os.path.exists(user_data_src):
+        shutil.copy2(user_data_src, user_data_dst)
+        print(f"Copied: {user_data_dst}")
+    else:
+        print(f"Warning: {user_data_src} not found")
+    
+    # Copy meta-data file
+    meta_data_src = os.path.join(script_dir, "autoinstall-meta-data")
+    meta_data_dst = os.path.join(server_dir, "meta-data")
+    if os.path.exists(meta_data_src):
+        shutil.copy2(meta_data_src, meta_data_dst)
+        print(f"Copied: {meta_data_dst}")
+    else:
+        print(f"Warning: {meta_data_src} not found")
+    
+    # Modify GRUB configuration for autoinstall
+    grub_cfg_path = os.path.join(work_dir, "boot", "grub", "grub.cfg")
+    if os.path.exists(grub_cfg_path):
+        # Backup original grub.cfg
+        shutil.copy2(grub_cfg_path, grub_cfg_path + ".backup")
+        
+        # Read custom GRUB config
+        grub_autoinstall_src = os.path.join(script_dir, "grub-autoinstall.cfg")
+        if os.path.exists(grub_autoinstall_src):
+            with open(grub_autoinstall_src, 'r') as f:
+                autoinstall_menu = f.read()
+            
+            # Prepend autoinstall menu to existing grub.cfg
+            with open(grub_cfg_path, 'r') as f:
+                original_grub = f.read()
+            
+            with open(grub_cfg_path, 'w') as f:
+                f.write(autoinstall_menu + "\n\n# Original GRUB configuration below:\n" + original_grub)
+            
+            print(f"Modified: {grub_cfg_path}")
+        else:
+            print(f"Warning: {grub_autoinstall_src} not found")
+    else:
+        print(f"Warning: {grub_cfg_path} not found")
+    
+    print("✓ Autoinstall configuration injected")
 
 def inject_hello_files(work_dir, efi_img, mbr_img):
     print("Injected HelloNOS.ESP, HelloNOS.BOOT, HelloNOS.OPT test files.")
@@ -241,7 +297,7 @@ def verify_hello_files(new_iso):
     except Exception as e:
         print(f"FAIL: Error checking HelloNOS.BOOT: {e}")
 
-def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
+def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     iso_url = "https://mirror.pilotfiber.com/ubuntu-iso/24.04.2/ubuntu-24.04.2-live-server-amd64.iso"
     iso_filename = "ubuntu-24.04.2-live-server-amd64.iso"
     
@@ -312,6 +368,9 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     if inject_hello:
         inject_hello_files(work_dir, "efi.img", "boot_hybrid.img")
     
+    if inject_autoinstall:
+        inject_autoinstall_files(work_dir)
+    
     new_iso = "NosanaAOS-0.24.04.2.iso"
     print(f"Rebuilding ISO as {new_iso}...")
     
@@ -370,7 +429,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.6")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7")
     print("==================================================")
     
     if not check_and_install_dependencies():
@@ -378,8 +437,9 @@ def main():
     
     dc_disable_cleanup = "-dc" in sys.argv
     inject_hello = "-hello" in sys.argv
+    inject_autoinstall = "-autoinstall" in sys.argv
     
-    if not remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
+    if not remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
         return 1
     
     print("\n==================================================")
