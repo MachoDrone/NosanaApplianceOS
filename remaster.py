@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.00.2
+Version: 0.00.3
 
 Purpose: Downloads Ubuntu 24.04.2 Live Server ISO for remastering purposes.
 Expectations: 
@@ -10,26 +10,66 @@ Expectations:
 - Always ends with ls -tralsh command
 - Will be frequently edited with version increments
 - Handles missing dependencies gracefully
+- Auto-installs all required dependencies
 """
 
 import os
 import sys
-import requests
 import subprocess
 
+def install_dependency(package_name, pip_name=None):
+    """Install a Python package using pip3"""
+    if pip_name is None:
+        pip_name = package_name
+    
+    print(f"Installing {package_name}...")
+    try:
+        # Try to install using pip3
+        result = subprocess.run([sys.executable, "-m", "pip", "install", pip_name, "-y"], 
+                              capture_output=True, text=True, check=True)
+        print(f"✓ {package_name} installed successfully")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"✗ Failed to install {package_name}: {e}")
+        return False
+
+def check_and_install_dependencies():
+    """Check and install all required dependencies"""
+    print("Checking dependencies...")
+    
+    dependencies = [
+        ("requests", "requests"),
+        ("tqdm", "tqdm")
+    ]
+    
+    for module_name, pip_name in dependencies:
+        try:
+            __import__(module_name)
+            print(f"✓ {module_name} already installed")
+        except ImportError:
+            print(f"✗ {module_name} not found, installing...")
+            if not install_dependency(module_name, pip_name):
+                print(f"Failed to install {module_name}. Please install manually: pip3 install {pip_name}")
+                return False
+    
+    print("All dependencies ready!")
+    return True
+
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.00.2")
+    print("Ubuntu ISO Remastering Tool - Version 0.00.3")
     print("=" * 50)
     
-    # Check for tqdm module
+    # Check and install dependencies
+    if not check_and_install_dependencies():
+        cleanup_and_exit()
+    
+    # Now import the dependencies
     try:
+        import requests
         from tqdm import tqdm
-        has_tqdm = True
-    except ImportError:
-        has_tqdm = False
-        print("Warning: tqdm module not found. Using basic progress display.")
-        print("Install with: pip3 install tqdm")
-        print()
+    except ImportError as e:
+        print(f"Critical error: {e}")
+        cleanup_and_exit()
     
     # Download URL
     url = "https://mirror.pilotfiber.com/ubuntu-iso/24.04.2/ubuntu-24.04.2-live-server-amd64.iso"
@@ -47,31 +87,17 @@ def main():
         # Get total file size
         total_size = int(response.headers.get('content-length', 0))
         
-        if has_tqdm:
-            # Download with tqdm progress bar
-            with open(filename, 'wb') as file, tqdm(
-                desc=filename,
-                total=total_size,
-                unit='iB',
-                unit_scale=True,
-                unit_divisor=1024,
-            ) as pbar:
-                for data in response.iter_content(chunk_size=1024):
-                    size = file.write(data)
-                    pbar.update(size)
-        else:
-            # Download with basic progress display
-            downloaded = 0
-            with open(filename, 'wb') as file:
-                for data in response.iter_content(chunk_size=1024):
-                    size = file.write(data)
-                    downloaded += size
-                    if total_size > 0:
-                        percent = (downloaded / total_size) * 100
-                        print(f"\rProgress: {downloaded}/{total_size} bytes ({percent:.1f}%)", end='', flush=True)
-                    else:
-                        print(f"\rDownloaded: {downloaded} bytes", end='', flush=True)
-            print()  # New line after progress
+        # Download with tqdm progress bar
+        with open(filename, 'wb') as file, tqdm(
+            desc=filename,
+            total=total_size,
+            unit='iB',
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as pbar:
+            for data in response.iter_content(chunk_size=1024):
+                size = file.write(data)
+                pbar.update(size)
         
         print(f"\nDownload completed: {filename}")
         
