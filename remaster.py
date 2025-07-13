@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.02.2
+Version: 0.02.3
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files.
 """
@@ -267,20 +267,42 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     new_iso = "NosanaAOS-0.24.04.2.iso"
     print(f"Rebuilding ISO as {new_iso}...")
     
-    # Use a simpler xorriso command that works with Ubuntu ISOs
-    xorriso_cmd = (
-        f"xorriso -as mkisofs -r -V 'NosanaAOS' -o {new_iso} "
-        f"-J -l -c boot.catalog "
-        f"-b boot/grub/i386-pc/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table "
-        f"-eltorito-alt-boot -e EFI/boot/bootx64.efi -no-emul-boot "
-        f"-append_partition 2 0xef efi.img "
-        f"-partition_cyl_align all "
-        f"-isohybrid-mbr boot_hybrid.img "
-        f"-isohybrid-gpt-basdat "
-        f"{work_dir}"
-    )
+    # Check if boot files exist and build xorriso command accordingly
+    eltorito_path = os.path.join(work_dir, "boot", "grub", "i386-pc", "eltorito.img")
+    efi_boot_path = os.path.join(work_dir, "EFI", "boot", "bootx64.efi")
     
-    run_command(xorriso_cmd, "Building hybrid ISO")
+    if os.path.exists(eltorito_path) and os.path.exists(efi_boot_path):
+        # Full hybrid boot with both BIOS and EFI
+        xorriso_cmd = (
+            f"xorriso -as mkisofs -r -V 'NosanaAOS' -o {new_iso} "
+            f"-J -l -c boot.catalog "
+            f"-b boot/grub/i386-pc/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table "
+            f"-eltorito-alt-boot -e EFI/boot/bootx64.efi -no-emul-boot "
+            f"-append_partition 2 0xef efi.img "
+            f"-partition_cyl_align all "
+            f"-isohybrid-mbr boot_hybrid.img "
+            f"-isohybrid-gpt-basdat "
+            f"{work_dir}"
+        )
+    elif os.path.exists(eltorito_path):
+        # BIOS boot only
+        xorriso_cmd = (
+            f"xorriso -as mkisofs -r -V 'NosanaAOS' -o {new_iso} "
+            f"-J -l -c boot.catalog "
+            f"-b boot/grub/i386-pc/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table "
+            f"-isohybrid-mbr boot_hybrid.img "
+            f"{work_dir}"
+        )
+    else:
+        # Simple ISO without special boot
+        xorriso_cmd = f"xorriso -as mkisofs -r -V 'NosanaAOS' -o {new_iso} -J -l {work_dir}"
+    
+    result = run_command(xorriso_cmd, "Building hybrid ISO")
+    
+    # Check if ISO was actually created
+    if not os.path.exists(new_iso) or os.path.getsize(new_iso) < 1024*1024:
+        print(f"✗ ISO creation failed or file is too small")
+        return False
     
     print(f"ISO remaster complete: {new_iso}")
     
@@ -294,7 +316,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.2")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.3")
     print("==================================================")
     
     if not check_and_install_dependencies():
