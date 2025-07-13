@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.01.7
+Version: 0.01.8
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files.
 """
@@ -158,7 +158,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     iso_url = "https://ubuntu.mirror.garr.it/releases/noble/ubuntu-24.04.2-live-server-amd64.iso"
     iso_name = "ubuntu-24.04.2-live-server-amd64.iso"
     new_iso = "NosanaAOS-0.24.04.2.iso"
-    work_dir = os.path.abspath("work_2204")
+    work_dir = os.path.abspath("working_dir")
     temp_paths = [work_dir, "boot_hybrid.img", "efi.img"]
     try:
         if not check_file_exists(iso_name):
@@ -198,7 +198,9 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
                 cleanup(temp_paths)
             return
         run_command(f"dd if={iso_name} bs=512 skip={efi_start} count={efi_count} of=efi.img", "Extracting EFI partition (efi.img)")
+        ensure_clean_dir(work_dir)
         run_command(f"xorriso -osirrox on -indev {iso_name} -extract / {work_dir}", f"Extracting ISO file tree to {work_dir}")
+        subprocess.run(["sudo", "chown", "-R", f"{os.getuid()}:{os.getgid()}", work_dir])
         print("You can now customize the extracted ISO in:", work_dir)
         if inject_hello:
             inject_hello_files(work_dir, "efi.img", "boot_hybrid.img")
@@ -235,7 +237,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
             cleanup(temp_paths)
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.01.7")
+    print("Ubuntu ISO Remastering Tool - Version 0.01.8")
     print("=" * 50)
     dc_disable_cleanup = "-dc" in sys.argv
     inject_hello = "-hello" in sys.argv
