@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.01.6
+Version: 0.01.7
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files.
 """
@@ -80,9 +80,15 @@ def cleanup(temp_paths):
             except Exception:
                 pass
 
+def ensure_clean_dir(path):
+    if os.path.exists(path):
+        subprocess.run(["sudo", "rm", "-rf", path])
+    os.makedirs(path, exist_ok=True)
+    subprocess.run(["sudo", "chown", f"{os.getuid()}:{os.getgid()}", path])
+
 def inject_hello_files(work_dir, efi_img, mbr_img):
     opt_dir = os.path.join(work_dir, "opt")
-    os.makedirs(opt_dir, exist_ok=True)
+    ensure_clean_dir(opt_dir)
     with open(os.path.join(opt_dir, "HelloNOS.OPT"), "w") as f:
         f.write("Hello from HelloNOS.OPT!\n")
     with open(efi_img, "ab") as f:
@@ -93,10 +99,9 @@ def inject_hello_files(work_dir, efi_img, mbr_img):
 
 def verify_hello_files(new_iso):
     print("Verifying injected files in new ISO...")
-    # 1. Check HelloNOS.OPT in opt dir
     opt_found = False
     try:
-        os.makedirs("_iso_mount", exist_ok=True)
+        ensure_clean_dir("_iso_mount")
         run_command(f"sudo mount -o loop {new_iso} _iso_mount", "Mounting new ISO for verification", check=False)
         opt_path = os.path.join("_iso_mount", "opt", "HelloNOS.OPT")
         if os.path.isfile(opt_path):
@@ -112,10 +117,9 @@ def verify_hello_files(new_iso):
     finally:
         run_command("sudo umount _iso_mount", "Unmounting ISO after verification", check=False)
         shutil.rmtree("_iso_mount", ignore_errors=True)
-    # 2. Check HelloNOS.ESP in ESP partition (using binwalk to extract EFI partition)
     esp_found = False
     try:
-        os.makedirs("_iso_esp", exist_ok=True)
+        ensure_clean_dir("_iso_esp")
         run_command(f"binwalk --dd='.*' {new_iso} -C _iso_esp", "Extracting ESP partition with binwalk", check=False)
         for root, dirs, files in os.walk("_iso_esp"):
             for file in files:
@@ -136,11 +140,10 @@ def verify_hello_files(new_iso):
         print(f"FAIL: Error checking HelloNOS.ESP: {e}")
     finally:
         shutil.rmtree("_iso_esp", ignore_errors=True)
-    # 3. Check HelloNOS.BOOT in MBR/BOOT area (first 1MB of ISO)
     boot_found = False
     try:
         with open(new_iso, "rb") as f:
-            mbr_data = f.read(1024*1024)  # Read first 1MB
+            mbr_data = f.read(1024*1024)
             if b"Hello from HelloNOS.BOOT!" in mbr_data:
                 print("PASS: HelloNOS.BOOT found in MBR/BOOT area of ISO.")
                 boot_found = True
@@ -232,7 +235,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
             cleanup(temp_paths)
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.01.6")
+    print("Ubuntu ISO Remastering Tool - Version 0.01.7")
     print("=" * 50)
     dc_disable_cleanup = "-dc" in sys.argv
     inject_hello = "-hello" in sys.argv
