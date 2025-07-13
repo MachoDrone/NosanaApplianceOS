@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version
-Version: 0.02.7-standalone-fixed
+Version: 0.02.7-standalone-fixed-v2
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
@@ -17,7 +17,7 @@ AUTOINSTALL_USER_DATA = """#cloud-config
 autoinstall:
   version: 1
   
-  # Allow interactive selection for these components
+  # Only allow interactive selection for these specific components
   interactive-sections:
     - locale
     - keyboard
@@ -28,56 +28,30 @@ autoinstall:
     - ubuntu-pro
     - drivers
   
-  # Force specific choices
-  locale: null  # Will be interactive
-  keyboard: null  # Will be interactive
-  
-  # Network configuration - interactive but with sensible defaults
-  network:
-    version: 2
-    
-  # Proxy configuration - interactive
-  proxy: null
-  
-  # Storage configuration - interactive
-  storage:
-    layout:
-      name: lvm
-  
-  # Identity configuration - interactive (user will input name, username, etc.)
-  identity: null
-  
-  # SSH configuration - force NO OpenSSH server installation
+  # SSH configuration - FORCE NO OpenSSH server installation
   ssh:
     install-server: false
     allow-pw: false
     authorized-keys: []
   
-  # Package selection - force Ubuntu Server minimized
+  # Package selection - FORCE Ubuntu Server minimized installation
   packages:
     - ubuntu-server-minimal
   
-  # Snap configuration - force NO featured server snaps
+  # Snap configuration - FORCE NO featured server snaps
   snaps: []
   
-  # Drivers configuration - force search for third-party drivers
-  drivers:
-    install: true
-  
-  # Ubuntu Pro configuration - default to skip but allow interactive choice
-  ubuntu-pro:
-    token: null  # Will be interactive with "Skip for now" default
-  
-  # Disable automatic updates during installation
+  # Updates - only security updates during installation
   updates: security
   
-  # Late commands to ensure minimized installation
+  # Late commands to ensure minimized installation and disable snaps
   late-commands:
     - echo 'Installation completed with forced minimized server configuration'
     - systemctl disable snapd.service || true
     - systemctl disable snapd.socket || true
     - systemctl mask snapd.service || true
     - systemctl mask snapd.socket || true
+    - echo 'autoinstall-user-data: SSH disabled, snaps disabled, minimal server installed' >> /var/log/installer/autoinstall-user-data
   
   # Error commands for troubleshooting
   error-commands:
@@ -97,7 +71,7 @@ set default=0
 
 menuentry "Install Ubuntu Server (Semi-Automated)" {
     set gfxpayload=keep
-    linux /casper/vmlinuz autoinstall ds=nocloud-net;s=/cdrom/server/
+    linux /casper/vmlinuz autoinstall ds=nocloud;s=/cdrom/server/ cloud-config-url=/cdrom/server/user-data
     initrd /casper/initrd
 }
 
@@ -457,7 +431,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-fixed")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-fixed-v2")
     print("==================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
