@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.02.0
+Version: 0.02.1
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files.
 """
@@ -147,9 +147,27 @@ def verify_hello_files(new_iso):
     opt_found = False
     mount_point = "_iso_mount"
     
+    # Force cleanup any existing mount point first
+    force_unmount(mount_point)
+    if os.path.exists(mount_point):
+        subprocess.run(["sudo", "rm", "-rf", mount_point], check=False)
+    
     try:
-        ensure_clean_dir(mount_point)
-        run_command(f"sudo mount -o loop {new_iso} {mount_point}", "Mounting new ISO for verification", check=False)
+        os.makedirs(mount_point, exist_ok=True)
+        subprocess.run(["sudo", "chown", f"{os.getuid()}:{os.getgid()}", mount_point])
+        
+        # Try to mount, but handle case where it might already be mounted
+        mount_result = subprocess.run(["sudo", "mount", "-o", "loop", new_iso, mount_point], 
+                                    capture_output=True, text=True)
+        
+        if mount_result.returncode != 0 and "already mounted" in mount_result.stderr:
+            print("ISO already mounted, continuing with verification...")
+        elif mount_result.returncode != 0:
+            print(f"Failed to mount ISO: {mount_result.stderr}")
+            return
+        else:
+            print("Mounting new ISO for verification...")
+            
         opt_path = os.path.join(mount_point, "opt", "HelloNOS.OPT")
         if os.path.isfile(opt_path):
             with open(opt_path, "r") as f:
@@ -261,7 +279,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.0")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.1")
     print("==================================================")
     
     if not check_and_install_dependencies():
