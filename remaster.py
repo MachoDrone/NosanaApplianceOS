@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.01.4
+Version: 0.01.5
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject test files.
 """
@@ -68,8 +68,12 @@ def cleanup(temp_paths):
             try:
                 shutil.rmtree(path, ignore_errors=True)
             except Exception:
+                pass
+            if os.path.isdir(path):
                 print(f"shutil.rmtree failed for {path}, trying sudo rm -rf")
-                run_command(f"sudo rm -rf {path}", f"sudo rm -rf {path}")
+                subprocess.run(["sudo", "rm", "-rf", path])
+            if os.path.isdir(path):
+                print(f"ERROR: Could not remove directory {path} after all attempts.")
         elif os.path.isfile(path):
             try:
                 os.remove(path)
@@ -77,15 +81,12 @@ def cleanup(temp_paths):
                 pass
 
 def inject_hello_files(work_dir, efi_img, mbr_img):
-    # HelloNOS.OPT in opt dir
     opt_dir = os.path.join(work_dir, "opt")
     os.makedirs(opt_dir, exist_ok=True)
     with open(os.path.join(opt_dir, "HelloNOS.OPT"), "w") as f:
         f.write("Hello from HelloNOS.OPT!\n")
-    # HelloNOS.ESP in ESP image (append to efi.img)
     with open(efi_img, "ab") as f:
         f.write(b"Hello from HelloNOS.ESP!\n")
-    # HelloNOS.BOOT in MBR/BOOT image (append to boot_hybrid.img)
     with open(mbr_img, "ab") as f:
         f.write(b"Hello from HelloNOS.BOOT!\n")
     print("Injected HelloNOS.ESP, HelloNOS.BOOT, HelloNOS.OPT test files.")
@@ -93,14 +94,12 @@ def inject_hello_files(work_dir, efi_img, mbr_img):
 def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     import requests
     from tqdm import tqdm
-    # ISO and output names
     iso_url = "https://ubuntu.mirror.garr.it/releases/noble/ubuntu-24.04.2-live-server-amd64.iso"
     iso_name = "ubuntu-24.04.2-live-server-amd64.iso"
     new_iso = "NosanaAOS-0.24.04.2.iso"
     work_dir = os.path.abspath("work_2204")
-    temp_paths = [work_dir, "boot_hybrid.img", "efi.img"]  # Do NOT include iso_name here
+    temp_paths = [work_dir, "boot_hybrid.img", "efi.img"]
     try:
-        # Download ISO if needed
         if not check_file_exists(iso_name):
             print(f"Downloading: {iso_url}")
             r = requests.get(iso_url, stream=True)
@@ -117,7 +116,6 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
                         f.write(chunk)
                         pbar.update(len(chunk))
             print(f"Download completed: {iso_name}")
-            # Check file size after download
             if not check_file_exists(iso_name):
                 print(f"ERROR: Downloaded ISO is too small or invalid. Aborting remaster process.")
                 if not dc_disable_cleanup:
@@ -125,10 +123,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
                 return
         else:
             print(f"Using existing ISO: {iso_name}")
-
-        # Extract MBR template
         run_command(f"dd if={iso_name} bs=1 count=432 of=boot_hybrid.img", "Extracting MBR template (boot_hybrid.img)")
-        # Find EFI partition start and size
         try:
             fdisk_out = subprocess.check_output(f"fdisk -l {iso_name}", shell=True, text=True)
             efi_line = next(l for l in fdisk_out.splitlines() if 'EFI System' in l)
@@ -141,15 +136,11 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
             if not dc_disable_cleanup:
                 cleanup(temp_paths)
             return
-        # Extract EFI partition
         run_command(f"dd if={iso_name} bs=512 skip={efi_start} count={efi_count} of=efi.img", "Extracting EFI partition (efi.img)")
-        # Extract ISO file tree
         run_command(f"xorriso -osirrox on -indev {iso_name} -extract / {work_dir}", f"Extracting ISO file tree to {work_dir}")
         print("You can now customize the extracted ISO in:", work_dir)
-        # Inject test files if requested
         if inject_hello:
             inject_hello_files(work_dir, "efi.img", "boot_hybrid.img")
-        # Rebuild ISO
         xorriso_cmd = (
             f"xorriso -as mkisofs -r "
             f"-V 'NosanaAOS 0.24.04.2 (EFIBIOS)' "
@@ -170,7 +161,6 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
         )
         run_command(xorriso_cmd, f"Rebuilding ISO as {new_iso}")
         print(f"ISO remaster complete: {new_iso}")
-        # Cleanup
         if not dc_disable_cleanup:
             print("Cleaning up temp files...")
             cleanup(temp_paths)
@@ -182,7 +172,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
             cleanup(temp_paths)
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.01.4")
+    print("Ubuntu ISO Remastering Tool - Version 0.01.5")
     print("=" * 50)
     dc_disable_cleanup = "-dc" in sys.argv
     inject_hello = "-hello" in sys.argv
