@@ -1,0 +1,145 @@
+Ubuntu 22.04 build ISO (Both: MBR and EFI )
+Asked 3 years, 2 months ago
+Modified 2 months ago
+Viewed 17k times
+5
+
+In our company we use a modified Ubuntu installation ISO image. Since Ubuntu 22.04 has changed the structure of the installation image (ISOLINUX has been removed, in favor of GRUB2), I would need advice on how to build a new ISO that would support both MBR and EFI at the same time (on same image), as Ubuntu 22.04.
+
+In Ubuntu 20.04, I built the ISO image using the commands below.
+
+So the question is: How to build an ISO image for Ubuntu 22.04? Thanks.
+
+Commands for create ISO image with Ubuntu 20.04 LTS
+Extract content from image:
+dd if="/opt/ubnt/ubuntu-20.04.4-desktop-amd64.iso" bs=1 count=432 of="/opt/ubnt/isohdpfx.bin"
+xorriso -osirrox on -indev /opt/ubnt/ubuntu-20.04.4-desktop-amd64.iso -extract / /opt/ubnt/ubuntu-MODIF
+... Some customizations here ...
+
+Build Ubuntu 20.04 LTS
+xorriso -as mkisofs -r  
+  -V 'Ubuntu 20.04 LTS MODIF (EFIBIOS)' 
+  -o /opt/ubnt/ubuntu-modif.iso 
+  -isohybrid-mbr /opt/ubnt/isohdpfx.bin 
+  -J -joliet-long -b isolinux/isolinux.bin 
+  -c isolinux/boot.cat 
+  -boot-load-size 4 
+  -boot-info-table -no-emul-boot -eltorito-alt-boot 
+  -e boot/grub/efi.img 
+  -no-emul-boot 
+  -isohybrid-gpt-basdat /opt/ubnt/ubuntu-MODIF
+bootgrub2uefiisocustomization
+Share
+Follow
+asked Apr 21, 2022 at 17:40
+Jakub Franek's user avatar
+Jakub Franek
+5311 gold badge11 silver badge44 bronze badges
+20.04 is still supported. is there a reason to jump to 22.04 in your environment specifically? – 
+Thomas Ward
+♦
+ CommentedApr 21, 2022 at 17:44
+There were no changes I thought in 22.04/jammy; it was the same as 21.10 I thought with most changes occurring in the groovy & hirsute cycles. – 
+guiverc
+ CommentedApr 21, 2022 at 18:49
+Add a comment
+1 Answer
+Sorted by:
+
+Highest score (default)
+9
+
+Ubuntu 22.04 build ISO (Both: MBR and EFI )
+
+The youngest release of xorriso (1.5.4) can tell:
+
+
+$ xorriso -indev ubuntu-22.04-desktop-amd64.iso -report_el_torito as_mkisofs
+-V 'Ubuntu 22.04 LTS amd64'
+--modification-date='2022041910231900'
+--grub2-mbr --interval:local_fs:0s-15s:zero_mbrpt,zero_gpt:'ubuntu-22.04-desktop-amd64.iso'
+--protective-msdos-label
+-partition_cyl_align off
+-partition_offset 16
+--mbr-force-bootable
+-append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b --interval:local_fs:7129428d-7137923d::'ubuntu-22.04-desktop-amd64.iso'
+-appended_part_as_gpt
+-iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7
+-c '/boot.catalog'
+-b '/boot/grub/i386-pc/eltorito.img'
+-no-emul-boot
+-boot-load-size 4
+-boot-info-table
+--grub2-boot-info
+-eltorito-alt-boot
+-e '--interval:appended_partition_2_start_1782357s_size_8496d:all::'
+-no-emul-boot
+-boot-load-size 8496
+Older versions guess wrong. The new layout surprises them somewhat. But they can create it. The original was made by xorriso-1.5.2.
+
+The shown options are for reproducing the ISO as exactly as possible. For a modified ISO one will want to omit some of them to get default settings and replace others by actions which later don't need the presence of the original ISO image.
+
+
+# Extract the MBR template for --grub2-mbr
+# We only need the x86 code. All partition stuff will be newly created.
+dd if=ubuntu-22.04-desktop-amd64.iso bs=1 count=432 of=/opt/ubnt/boot_hybrid.img
+
+# The EFI partition is not a data file inside the ISO any more.
+# So extract the EFI partition image image for -append_partition
+# 7129428d-7137923d : 7137923 - 7129428 + 1 = 8496
+dd if=ubuntu-22.04-desktop-amd64.iso bs=512 skip=7129428 count=8496 of=/opt/ubnt/efi.img
+
+# Extract file tree as usual ...
+
+# Finally pack up an ISO the new way
+xorriso -as mkisofs -r \
+  -V 'Ubuntu 22.04 LTS MODIF (EFIBIOS)' \
+  -o /opt/ubnt/ubuntu-modif.iso \
+  --grub2-mbr /opt/ubnt/boot_hybrid.img \
+  -partition_offset 16 \
+  --mbr-force-bootable \
+  -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b /opt/ubnt/efi.img \
+  -appended_part_as_gpt \
+  -iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7 \
+  -c '/boot.catalog' \
+  -b '/boot/grub/i386-pc/eltorito.img' \
+    -no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info \
+  -eltorito-alt-boot \
+  -e '--interval:appended_partition_2:::' \
+    -no-emul-boot \
+  /opt/ubnt/ubuntu-MODIF
+The advantage is that the ISO on USB stick will be recognized as GPT partitioned with neatly separated partitions.
+
+
+$ /sbin/fdisk -l ubuntu-22.04-desktop-amd64.iso
+
+Disk ubuntu-22.04-desktop-amd64.iso: 3.4 GiB, 3654957056 bytes, 7138588 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: gpt
+Disk identifier: A09DB2B8-B5F6-43AE-AFB3-91E0A90189A1
+
+Device                            Start     End Sectors  Size Type
+ubuntu-22.04-desktop-amd64.iso1      64 7129427 7129364  3.4G Microsoft basic da
+ubuntu-22.04-desktop-amd64.iso2 7129428 7137923    8496  4.2M EFI System
+ubuntu-22.04-desktop-amd64.iso3 7137924 7138523     600  300K Microsoft basic da
+(Partition 3 covers the traditional end padding of 300 KiB which is actually needed only on CD media written by write type Track-At-Once. Option -no-pad would prevent it.)
+
+Share
+Follow
+answered Apr 22, 2022 at 6:42
+Thomas Schmitt's user avatar
+Thomas Schmitt
+15122 bronze badges
+2
+Thomas, how had you converted 7129428d-7137923d to 7137923 - 7129428 + 1 = 8496? – 
+Andrey Zentavr
+ CommentedJul 27, 2022 at 2:33
+1
+Another question is: why you copy 432 bytes of MBR instead of 446? Classic MBR has 446 bytes of the bootstrap code area. Modern MBR has 218 bytes of Bootstrap code area (part 1) and 216 (or 222) of Bootstrap code area (part 2). – 
+Andrey Zentavr
+ CommentedJul 27, 2022 at 2:44
+In the xorrisofs documentation you can see that 'd' means multiply by 512 and since (7129428d-7137923d) tells us the start and end sector we must include the start sector in the calculation, so we do +1. In dd we are already operating on the number of sectors, so we skip 7129428 sectors and read the next 8496. – 
+Rabe
+ CommentedApr 29 at 9:42 
