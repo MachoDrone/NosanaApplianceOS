@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.02.1
+Version: 0.02.2
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files.
 """
@@ -60,7 +60,8 @@ def check_file_exists(filename, min_size_mb=100):
     if os.path.isfile(filename):
         size_mb = os.path.getsize(filename) / (1024*1024)
         if size_mb >= min_size_mb:
-            print(f"✓ ISO file already exists: {filename} ({size_mb:.2f} GB)")
+            size_gb = size_mb / 1024
+            print(f"✓ ISO file already exists: {filename} ({size_gb:.2f} GB)")
             return True
     return False
 
@@ -265,7 +266,21 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     
     new_iso = "NosanaAOS-0.24.04.2.iso"
     print(f"Rebuilding ISO as {new_iso}...")
-    run_command(f"xorriso -as mkisofs -r -V 'NosanaAOS' -o {new_iso} -J -l -b boot/grub/i386-pc/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot -append_partition 2 0xef efi.img -partition_cyl_align all -isohybrid-mbr boot_hybrid.img -isohybrid-gpt-basdat {work_dir}", "Building hybrid ISO")
+    
+    # Use a simpler xorriso command that works with Ubuntu ISOs
+    xorriso_cmd = (
+        f"xorriso -as mkisofs -r -V 'NosanaAOS' -o {new_iso} "
+        f"-J -l -c boot.catalog "
+        f"-b boot/grub/i386-pc/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table "
+        f"-eltorito-alt-boot -e EFI/boot/bootx64.efi -no-emul-boot "
+        f"-append_partition 2 0xef efi.img "
+        f"-partition_cyl_align all "
+        f"-isohybrid-mbr boot_hybrid.img "
+        f"-isohybrid-gpt-basdat "
+        f"{work_dir}"
+    )
+    
+    run_command(xorriso_cmd, "Building hybrid ISO")
     
     print(f"ISO remaster complete: {new_iso}")
     
@@ -279,7 +294,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.1")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.2")
     print("==================================================")
     
     if not check_and_install_dependencies():
