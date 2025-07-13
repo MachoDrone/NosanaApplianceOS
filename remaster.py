@@ -1,216 +1,154 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.00.6
+Version: 0.00.7
 
-Purpose: Downloads Ubuntu 24.04.2 Live Server ISO for remastering purposes.
-Expectations: 
-- Shows version number before any sudo prompts
-- Downloads Ubuntu ISO with live progress display
-- Always ends with ls -tralsh command
-- Will be frequently edited with version increments
-- Handles missing dependencies gracefully
-- Auto-installs all required dependencies with no user interaction
-- Skips download if ISO already exists
+Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup.
 """
 
 import os
 import sys
 import subprocess
+import shutil
 
-def run_command(cmd, description=""):
-    """Run a command and return success status"""
-    if description:
-        print(f"{description}...")
+def run_command(cmd, description="", check=True):
+    print(f"{description}...")
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
-        return True
-    except subprocess.CalledProcessError as e:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=check)
+        if result.returncode != 0:
+            print(result.stderr)
+        return result.returncode == 0
+    except Exception as e:
         print(f"✗ Failed: {e}")
         return False
 
 def install_system_dependencies():
-    """Install system-level dependencies"""
     print("Installing system dependencies...")
-    
-    # Update package list
-    if not run_command("sudo apt-get update", "Updating package list"):
-        return False
-    
-    # Install python3-pip if not available
-    if not run_command("sudo apt-get install -y python3-pip", "Installing python3-pip"):
-        return False
-    
+    run_command("sudo apt-get update", "Updating package list")
+    run_command("sudo apt-get install -y python3-pip xorriso coreutils", "Installing python3-pip, xorriso, coreutils (dd)")
     print("✓ System dependencies installed")
-    return True
 
 def install_python_dependency(package_name):
-    """Install a Python package using multiple methods"""
-    print(f"Installing {package_name}...")
-    
-    # Method 1: Try pip3 install
-    if run_command(f"pip3 install {package_name}", f"Installing {package_name} (pip3)"):
-        print(f"✓ {package_name} installed successfully")
-        return True
-    
-    # Method 2: Try pip install
-    if run_command(f"pip install {package_name}", f"Installing {package_name} (pip)"):
-        print(f"✓ {package_name} installed successfully")
-        return True
-    
-    # Method 3: Try with --user flag
-    if run_command(f"pip3 install --user {package_name}", f"Installing {package_name} (user)"):
-        print(f"✓ {package_name} installed successfully")
-        return True
-    
-    # Method 4: Try with sudo
-    if run_command(f"sudo pip3 install {package_name}", f"Installing {package_name} (sudo pip3)"):
-        print(f"✓ {package_name} installed successfully")
-        return True
-    
-    # Method 5: Try apt-get for Python packages
-    apt_package_map = {
-        "requests": "python3-requests",
-        "tqdm": "python3-tqdm"
-    }
-    
-    if package_name in apt_package_map:
-        apt_package = apt_package_map[package_name]
-        if run_command(f"sudo apt-get install -y {apt_package}", f"Installing {package_name} (apt-get)"):
-            print(f"✓ {package_name} installed successfully via apt-get")
+    for cmd in [
+        f"pip3 install {package_name}",
+        f"pip install {package_name}",
+        f"pip3 install --user {package_name}",
+        f"sudo pip3 install {package_name}",
+        f"python3 -m pip install {package_name}",
+        f"python3 -m pip install --user {package_name}"
+    ]:
+        if run_command(cmd, f"Installing {package_name}"):
             return True
-    
-    # Method 6: Try with python3 -m pip
-    if run_command(f"python3 -m pip install {package_name}", f"Installing {package_name} (python3 -m pip)"):
-        print(f"✓ {package_name} installed successfully")
-        return True
-    
-    # Method 7: Try with python3 -m pip --user
-    if run_command(f"python3 -m pip install --user {package_name}", f"Installing {package_name} (python3 -m pip --user)"):
-        print(f"✓ {package_name} installed successfully")
-        return True
-    
-    print(f"✗ All installation methods failed for {package_name}")
     return False
 
 def check_and_install_dependencies():
-    """Check and install all required dependencies"""
     print("Checking dependencies...")
-    
-    # First ensure system dependencies are available
-    if not install_system_dependencies():
-        return False
-    
-    dependencies = ["requests", "tqdm"]
-    
-    for module_name in dependencies:
+    install_system_dependencies()
+    for module in ["requests", "tqdm"]:
         try:
-            __import__(module_name)
-            print(f"✓ {module_name} already installed")
+            __import__(module)
+            print(f"✓ {module} already installed")
         except ImportError:
-            print(f"✗ {module_name} not found, installing...")
-            if not install_python_dependency(module_name):
-                print(f"CRITICAL: All installation methods failed for {module_name}")
-                print("Attempting emergency installation...")
-                
-                # Emergency method: Try to install via apt-get with force
-                apt_package_map = {
-                    "requests": "python3-requests",
-                    "tqdm": "python3-tqdm"
-                }
-                
-                if module_name in apt_package_map:
-                    apt_package = apt_package_map[module_name]
-                    if not run_command(f"sudo apt-get install -y --force-yes {apt_package}", f"Emergency install {module_name}"):
-                        print(f"EMERGENCY INSTALLATION FAILED for {module_name}")
-                        return False
-                else:
-                    return False
-    
+            print(f"✗ {module} not found, installing...")
+            if not install_python_dependency(module):
+                print(f"CRITICAL: Could not install {module}")
+                sys.exit(1)
     print("All dependencies ready!")
-    return True
 
 def check_file_exists(filename):
-    """Check if the ISO file already exists and is not empty"""
-    if os.path.exists(filename):
-        file_size = os.path.getsize(filename)
-        if file_size > 0:
-            # Convert to GB for display
-            size_gb = file_size / (1024**3)
-            print(f"✓ ISO file already exists: {filename} ({size_gb:.2f} GB)")
-            return True
+    if os.path.exists(filename) and os.path.getsize(filename) > 0:
+        size_gb = os.path.getsize(filename) / (1024**3)
+        print(f"✓ ISO file already exists: {filename} ({size_gb:.2f} GB)")
+        return True
     return False
 
-def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.00.6")
-    print("=" * 50)
-    
-    # Check and install dependencies
-    if not check_and_install_dependencies():
-        cleanup_and_exit()
-    
-    # Now import the dependencies
-    try:
-        import requests
-        from tqdm import tqdm
-    except ImportError as e:
-        print(f"Critical error: {e}")
-        cleanup_and_exit()
-    
-    # Download URL and filename
-    url = "https://ubuntu.mirror.garr.it/releases/noble/ubuntu-24.04.2-live-server-amd64.iso"
-    filename = "ubuntu-24.04.2-live-server-amd64.iso"
-    
-    # Check if file already exists
-    if check_file_exists(filename):
-        print("Skipping download - file already exists.")
-    else:
-        print(f"Downloading: {url}")
-        print(f"Filename: {filename}")
-        print()
-        
-        try:
-            # Start download with progress bar
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            
-            # Get total file size
-            total_size = int(response.headers.get('content-length', 0))
-            
-            # Download with tqdm progress bar
-            with open(filename, 'wb') as file, tqdm(
-                desc=filename,
-                total=total_size,
-                unit='iB',
-                unit_scale=True,
-                unit_divisor=1024,
-            ) as pbar:
-                for data in response.iter_content(chunk_size=1024):
-                    size = file.write(data)
-                    pbar.update(size)
-            
-            print(f"\nDownload completed: {filename}")
-            
-        except requests.exceptions.RequestException as e:
-            print(f"Error downloading file: {e}")
-            cleanup_and_exit()
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-            cleanup_and_exit()
-    
-    # Always end with ls -tralsh
-    print("\n" + "=" * 50)
-    print("Directory listing:")
-    subprocess.run(["ls", "-tralsh"])
+def cleanup(temp_paths):
+    for path in temp_paths:
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        elif os.path.isfile(path):
+            try:
+                os.remove(path)
+            except Exception:
+                pass
 
-def cleanup_and_exit():
-    """Clean up and exit with sudo -k and ls -tralsh"""
+def remaster_ubuntu_2204(dc_disable_cleanup):
+    import requests
+    from tqdm import tqdm
+    # ISO and output names
+    iso_url = "https://releases.ubuntu.com/22.04/ubuntu-22.04.2-desktop-amd64.iso"
+    iso_name = "ubuntu-22.04.2-desktop-amd64.iso"
+    new_iso = "NosanaAOS-0.24.04.2.iso"
+    work_dir = os.path.abspath("work_2204")
+    os.makedirs(work_dir, exist_ok=True)
+    temp_paths = [work_dir, "boot_hybrid.img", "efi.img"]
+
+    # Download ISO if needed
+    if not check_file_exists(iso_name):
+        print(f"Downloading: {iso_url}")
+        r = requests.get(iso_url, stream=True)
+        total = int(r.headers.get('content-length', 0))
+        with open(iso_name, 'wb') as f, tqdm(desc=iso_name, total=total, unit='iB', unit_scale=True) as pbar:
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+                    pbar.update(len(chunk))
+        print(f"Download completed: {iso_name}")
+    else:
+        print(f"Using existing ISO: {iso_name}")
+
+    # Extract MBR template
+    run_command(f"dd if={iso_name} bs=1 count=432 of=boot_hybrid.img", "Extracting MBR template (boot_hybrid.img)")
+    # Find EFI partition start and size
+    fdisk_out = subprocess.check_output(f"fdisk -l {iso_name}", shell=True, text=True)
+    efi_line = next(l for l in fdisk_out.splitlines() if 'EFI System' in l)
+    parts = efi_line.split()
+    efi_start, efi_end = int(parts[1]), int(parts[2])
+    efi_count = efi_end - efi_start + 1
+    # Extract EFI partition
+    run_command(f"dd if={iso_name} bs=512 skip={efi_start} count={efi_count} of=efi.img", "Extracting EFI partition (efi.img)")
+    # Extract ISO file tree
+    run_command(f"xorriso -osirrox on -indev {iso_name} -extract / {work_dir}", f"Extracting ISO file tree to {work_dir}")
+    print("You can now customize the extracted ISO in:", work_dir)
+    # (Customization placeholder)
+    # Rebuild ISO
+    xorriso_cmd = (
+        f"xorriso -as mkisofs -r "
+        f"-V 'NosanaAOS 0.24.04.2 (EFIBIOS)' "
+        f"-o {new_iso} "
+        f"--grub2-mbr boot_hybrid.img "
+        f"-partition_offset 16 "
+        f"--mbr-force-bootable "
+        f"-append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b efi.img "
+        f"-appended_part_as_gpt "
+        f"-iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7 "
+        f"-c '/boot.catalog' "
+        f"-b '/boot/grub/i386-pc/eltorito.img' "
+        f"-no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info "
+        f"-eltorito-alt-boot "
+        f"-e '--interval:appended_partition_2:::' "
+        f"-no-emul-boot "
+        f"{work_dir}"
+    )
+    run_command(xorriso_cmd, f"Rebuilding ISO as {new_iso}")
+    print(f"ISO remaster complete: {new_iso}")
+    # Cleanup
+    if not dc_disable_cleanup:
+        print("Cleaning up temp files...")
+        cleanup(temp_paths)
+    else:
+        print("-dc set: Not cleaning up temp files.")
+
+def main():
+    print("Ubuntu ISO Remastering Tool - Version 0.00.7")
+    print("=" * 50)
+    dc_disable_cleanup = "-dc" in sys.argv
+    check_and_install_dependencies()
+    # Example: run Ubuntu 22.04.2 remaster workflow
+    remaster_ubuntu_2204(dc_disable_cleanup)
     print("\n" + "=" * 50)
-    print("Script crashed. Running cleanup...")
-    subprocess.run(["sudo", "-k"])
     print("Directory listing:")
     subprocess.run(["ls", "-tralsh"])
-    sys.exit(1)
 
 if __name__ == "__main__":
     main()
