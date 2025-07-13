@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version
-Version: 0.02.7-standalone-fixed-v2
+Version: 0.02.7-standalone-fixed-v3
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
@@ -12,12 +12,12 @@ import os
 import sys
 import subprocess
 
-# Inline autoinstall configuration files
+# Inline autoinstall configuration files  
 AUTOINSTALL_USER_DATA = """#cloud-config
 autoinstall:
   version: 1
   
-  # Only allow interactive selection for these specific components
+  # Interactive sections - only these will be shown to the user
   interactive-sections:
     - locale
     - keyboard
@@ -28,38 +28,58 @@ autoinstall:
     - ubuntu-pro
     - drivers
   
-  # SSH configuration - FORCE NO OpenSSH server installation
+  # Pre-configure everything else to skip those screens entirely
+  
+  # SSH - COMPLETELY DISABLE SSH installation (forces skip of SSH screen)
   ssh:
     install-server: false
     allow-pw: false
     authorized-keys: []
   
-  # Package selection - FORCE Ubuntu Server minimized installation
-  packages:
-    - ubuntu-server-minimal
-  
-  # Snap configuration - FORCE NO featured server snaps
+  # Snaps - FORCE empty list (should skip snap selection screen)  
   snaps: []
   
-  # Updates - only security updates during installation
+  # Package selection - force minimal server
+  packages:
+    - ubuntu-server-minimal
+    
+  # Updates
   updates: security
   
-  # Late commands to ensure minimized installation and disable snaps
+  # Source configuration
+  source:
+    id: ubuntu-server-minimal
+    search_drivers: true
+  
+  # Explicitly disable features to skip their screens
+  
+  # Refresh installer settings
+  refresh-installer:
+    update: false
+    channel: "stable/ubuntu-24.04"
+  
+  # Debugging and logging
+  reporting:
+    builtin:
+      type: print
+  
+  # Commands to run during installation
+  early-commands:
+    - echo "Autoinstall: Starting with SSH disabled and no snaps" | tee -a /tmp/autoinstall.log
+    
   late-commands:
-    - echo 'Installation completed with forced minimized server configuration'
-    - systemctl disable snapd.service || true
-    - systemctl disable snapd.socket || true
-    - systemctl mask snapd.service || true
-    - systemctl mask snapd.socket || true
-    - echo 'autoinstall-user-data: SSH disabled, snaps disabled, minimal server installed' >> /var/log/installer/autoinstall-user-data
-  
-  # Error commands for troubleshooting
-  error-commands:
-    - echo 'Installation failed, check logs'
-    - journalctl -n 50
-  
-  # Reboot after installation
+    - echo "Autoinstall: Installation completed" | tee -a /var/log/autoinstall.log
+    - systemctl disable snapd.service snapd.socket snapd.seeded.service || true
+    - systemctl mask snapd.service snapd.socket snapd.seeded.service || true  
+    - echo "Autoinstall: SSH server disabled, snaps disabled" | tee -a /var/log/autoinstall.log
+    
+  # Reboot settings
   shutdown: reboot
+  
+  # Error handling
+  error-commands:
+    - echo "Autoinstall: Installation failed" | tee -a /var/log/autoinstall-error.log
+    - journalctl -n 50 | tee -a /var/log/autoinstall-error.log
 """
 
 AUTOINSTALL_META_DATA = """instance-id: ubuntu-autoinstall
@@ -71,7 +91,7 @@ set default=0
 
 menuentry "Install Ubuntu Server (Semi-Automated)" {
     set gfxpayload=keep
-    linux /casper/vmlinuz autoinstall ds=nocloud;s=/cdrom/server/ cloud-config-url=/cdrom/server/user-data
+    linux /casper/vmlinuz autoinstall ds=nocloud-net;s=/cdrom/server/ --- 
     initrd /casper/initrd
 }
 
@@ -431,7 +451,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-fixed-v2")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-fixed-v3")
     print("==================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
