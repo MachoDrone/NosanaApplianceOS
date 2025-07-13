@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.00.7
+Version: 0.00.8
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup.
 """
@@ -55,8 +55,8 @@ def check_and_install_dependencies():
                 sys.exit(1)
     print("All dependencies ready!")
 
-def check_file_exists(filename):
-    if os.path.exists(filename) and os.path.getsize(filename) > 0:
+def check_file_exists(filename, min_size_mb=100):
+    if os.path.exists(filename) and os.path.getsize(filename) > min_size_mb * 1024 * 1024:
         size_gb = os.path.getsize(filename) / (1024**3)
         print(f"✓ ISO file already exists: {filename} ({size_gb:.2f} GB)")
         return True
@@ -87,6 +87,10 @@ def remaster_ubuntu_2204(dc_disable_cleanup):
     if not check_file_exists(iso_name):
         print(f"Downloading: {iso_url}")
         r = requests.get(iso_url, stream=True)
+        if r.status_code != 200:
+            print(f"ERROR: Failed to download ISO. HTTP status code: {r.status_code}")
+            print("Aborting remaster process.")
+            return
         total = int(r.headers.get('content-length', 0))
         with open(iso_name, 'wb') as f, tqdm(desc=iso_name, total=total, unit='iB', unit_scale=True) as pbar:
             for chunk in r.iter_content(chunk_size=1024):
@@ -94,17 +98,26 @@ def remaster_ubuntu_2204(dc_disable_cleanup):
                     f.write(chunk)
                     pbar.update(len(chunk))
         print(f"Download completed: {iso_name}")
+        # Check file size after download
+        if not check_file_exists(iso_name):
+            print(f"ERROR: Downloaded ISO is too small or invalid. Aborting remaster process.")
+            return
     else:
         print(f"Using existing ISO: {iso_name}")
 
     # Extract MBR template
     run_command(f"dd if={iso_name} bs=1 count=432 of=boot_hybrid.img", "Extracting MBR template (boot_hybrid.img)")
     # Find EFI partition start and size
-    fdisk_out = subprocess.check_output(f"fdisk -l {iso_name}", shell=True, text=True)
-    efi_line = next(l for l in fdisk_out.splitlines() if 'EFI System' in l)
-    parts = efi_line.split()
-    efi_start, efi_end = int(parts[1]), int(parts[2])
-    efi_count = efi_end - efi_start + 1
+    try:
+        fdisk_out = subprocess.check_output(f"fdisk -l {iso_name}", shell=True, text=True)
+        efi_line = next(l for l in fdisk_out.splitlines() if 'EFI System' in l)
+        parts = efi_line.split()
+        efi_start, efi_end = int(parts[1]), int(parts[2])
+        efi_count = efi_end - efi_start + 1
+    except Exception as e:
+        print(f"ERROR: Could not parse EFI partition from fdisk output: {e}")
+        print("Aborting remaster process.")
+        return
     # Extract EFI partition
     run_command(f"dd if={iso_name} bs=512 skip={efi_start} count={efi_count} of=efi.img", "Extracting EFI partition (efi.img)")
     # Extract ISO file tree
@@ -140,11 +153,10 @@ def remaster_ubuntu_2204(dc_disable_cleanup):
         print("-dc set: Not cleaning up temp files.")
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.00.7")
+    print("Ubuntu ISO Remastering Tool - Version 0.00.8")
     print("=" * 50)
     dc_disable_cleanup = "-dc" in sys.argv
     check_and_install_dependencies()
-    # Example: run Ubuntu 22.04.2 remaster workflow
     remaster_ubuntu_2204(dc_disable_cleanup)
     print("\n" + "=" * 50)
     print("Directory listing:")
