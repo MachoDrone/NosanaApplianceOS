@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.01.9
+Version: 0.02.0
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files.
 """
@@ -49,22 +49,58 @@ def check_and_install_dependencies():
             __import__(module)
             print(f"✓ {module} already installed")
         except ImportError:
-            print(f"✗ {module} not found, installing...")
+            print(f"Installing {module}...")
             if not install_python_dependency(module):
-                print(f"CRITICAL: Could not install {module}")
-                sys.exit(1)
+                print(f"✗ Failed to install {module}")
+                return False
     print("All dependencies ready!")
+    return True
 
 def check_file_exists(filename, min_size_mb=100):
-    if os.path.exists(filename) and os.path.getsize(filename) > min_size_mb * 1024 * 1024:
-        size_gb = os.path.getsize(filename) / (1024**3)
-        print(f"✓ ISO file already exists: {filename} ({size_gb:.2f} GB)")
-        return True
+    if os.path.isfile(filename):
+        size_mb = os.path.getsize(filename) / (1024*1024)
+        if size_mb >= min_size_mb:
+            print(f"✓ ISO file already exists: {filename} ({size_mb:.2f} GB)")
+            return True
     return False
+
+def force_unmount(path):
+    """Force unmount a directory with multiple attempts"""
+    if not os.path.exists(path):
+        return True
+    
+    # Check if it's actually mounted
+    try:
+        result = subprocess.run(["mountpoint", "-q", path], capture_output=True)
+        if result.returncode != 0:
+            return True  # Not mounted
+    except:
+        pass
+    
+    print(f"Unmounting {path}...")
+    # Try regular unmount first
+    for attempt in range(3):
+        result = subprocess.run(["sudo", "umount", path], capture_output=True)
+        if result.returncode == 0:
+            return True
+        if attempt < 2:
+            subprocess.run(["sleep", "1"])
+    
+    # Try force unmount
+    result = subprocess.run(["sudo", "umount", "-f", path], capture_output=True)
+    if result.returncode == 0:
+        return True
+    
+    # Try lazy unmount as last resort
+    result = subprocess.run(["sudo", "umount", "-l", path], capture_output=True)
+    return result.returncode == 0
 
 def cleanup(temp_paths):
     for path in temp_paths:
         if os.path.isdir(path):
+            # Force unmount if it's a mount point
+            force_unmount(path)
+            
             try:
                 shutil.rmtree(path, ignore_errors=True)
             except Exception:
@@ -82,27 +118,29 @@ def cleanup(temp_paths):
 
 def ensure_clean_dir(path):
     if os.path.exists(path):
+        force_unmount(path)
         subprocess.run(["sudo", "rm", "-rf", path])
     os.makedirs(path, exist_ok=True)
     subprocess.run(["sudo", "chown", f"{os.getuid()}:{os.getgid()}", path])
 
 def inject_hello_files(work_dir, efi_img, mbr_img):
-    opt_dir = os.path.join(work_dir, "opt")
-    ensure_clean_dir(opt_dir)
-    with open(os.path.join(opt_dir, "HelloNOS.OPT"), "w") as f:
-        f.write("Hello from HelloNOS.OPT!\n")
-    
-    # Inject into EFI image - create a test file and append to the image
-    test_esp_content = b"Hello from HelloNOS.ESP!\n" + b"X" * 512
-    with open(efi_img, "ab") as f:
-        f.write(test_esp_content)
-    
-    # Inject into MBR/BOOT image - append to end of 432-byte MBR
-    test_boot_content = b"Hello from HelloNOS.BOOT!\n" + b"Y" * 512
-    with open(mbr_img, "ab") as f:
-        f.write(test_boot_content)
-    
     print("Injected HelloNOS.ESP, HelloNOS.BOOT, HelloNOS.OPT test files.")
+    
+    # Inject into EFI partition
+    with open(efi_img, "r+b") as f:
+        f.seek(1024)
+        f.write(b"Hello from HelloNOS.ESP! This is a test file in the EFI System Partition.\n")
+    
+    # Inject into MBR/boot area
+    with open(mbr_img, "r+b") as f:
+        f.seek(512)
+        f.write(b"Hello from HelloNOS.BOOT! This is a test file in the MBR/boot area.\n")
+    
+    # Inject into opt directory
+    opt_dir = os.path.join(work_dir, "opt")
+    os.makedirs(opt_dir, exist_ok=True)
+    with open(os.path.join(opt_dir, "HelloNOS.OPT"), "w") as f:
+        f.write("Hello from HelloNOS.OPT! This is a test file in the /opt directory.\n")
 
 def verify_hello_files(new_iso):
     print("Verifying injected files in new ISO...")
@@ -124,17 +162,8 @@ def verify_hello_files(new_iso):
     except Exception as e:
         print(f"FAIL: Error checking HelloNOS.OPT: {e}")
     finally:
-        # Force unmount with multiple attempts
-        for attempt in range(3):
-            result = run_command(f"sudo umount {mount_point}", "Unmounting ISO after verification", check=False)
-            if result:
-                break
-            if attempt < 2:
-                run_command("sleep 1", "", check=False)
-        
-        # Force unmount if still mounted
-        if os.path.ismount(mount_point):
-            run_command(f"sudo umount -f {mount_point}", "Force unmounting ISO", check=False)
+        # Ensure proper unmount
+        force_unmount(mount_point)
         
         # Clean up mount point directory
         if os.path.exists(mount_point):
@@ -171,99 +200,83 @@ def verify_hello_files(new_iso):
         print(f"FAIL: Error checking HelloNOS.BOOT: {e}")
 
 def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
-    import requests
-    from tqdm import tqdm
     iso_url = "https://ubuntu.mirror.garr.it/releases/noble/ubuntu-24.04.2-live-server-amd64.iso"
-    iso_name = "ubuntu-24.04.2-live-server-amd64.iso"
-    new_iso = "NosanaAOS-0.24.04.2.iso"
-    work_dir = os.path.abspath("working_dir")
-    temp_paths = [work_dir, "boot_hybrid.img", "efi.img", "work_2204", "_iso_mount", "_iso_esp"]
-    try:
-        if not check_file_exists(iso_name):
-            print(f"Downloading: {iso_url}")
-            r = requests.get(iso_url, stream=True)
-            if r.status_code != 200:
-                print(f"ERROR: Failed to download ISO. HTTP status code: {r.status_code}")
-                print("Aborting remaster process.")
-                if not dc_disable_cleanup:
-                    cleanup(temp_paths)
-                return
-            total = int(r.headers.get('content-length', 0))
-            with open(iso_name, 'wb') as f, tqdm(desc=iso_name, total=total, unit='iB', unit_scale=True) as pbar:
-                for chunk in r.iter_content(chunk_size=1024):
-                    if chunk:
-                        f.write(chunk)
-                        pbar.update(len(chunk))
-            print(f"Download completed: {iso_name}")
-            if not check_file_exists(iso_name):
-                print(f"ERROR: Downloaded ISO is too small or invalid. Aborting remaster process.")
-                if not dc_disable_cleanup:
-                    cleanup(temp_paths)
-                return
-        else:
-            print(f"Using existing ISO: {iso_name}")
-        run_command(f"dd if={iso_name} bs=1 count=432 of=boot_hybrid.img", "Extracting MBR template (boot_hybrid.img)")
+    iso_filename = "ubuntu-24.04.2-live-server-amd64.iso"
+    
+    temp_paths = ["working_dir", "work_2204", "boot_hybrid.img", "efi.img", "_iso_mount"]
+    
+    if not check_file_exists(iso_filename):
+        print(f"Downloading {iso_filename}...")
         try:
-            fdisk_out = subprocess.check_output(f"fdisk -l {iso_name}", shell=True, text=True)
-            efi_line = next(l for l in fdisk_out.splitlines() if 'EFI System' in l)
-            parts = efi_line.split()
-            efi_start, efi_end = int(parts[1]), int(parts[2])
-            efi_count = efi_end - efi_start + 1
+            import requests
+            from tqdm import tqdm
+            response = requests.get(iso_url, stream=True)
+            response.raise_for_status()
+            total_size = int(response.headers.get('content-length', 0))
+            with open(iso_filename, 'wb') as f, tqdm(
+                desc=iso_filename,
+                total=total_size,
+                unit='B',
+                unit_scale=True,
+                unit_divisor=1024,
+            ) as bar:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    bar.update(len(chunk))
         except Exception as e:
-            print(f"ERROR: Could not parse EFI partition from fdisk output: {e}")
-            print("Aborting remaster process.")
-            if not dc_disable_cleanup:
-                cleanup(temp_paths)
-            return
-        run_command(f"dd if={iso_name} bs=512 skip={efi_start} count={efi_count} of=efi.img", "Extracting EFI partition (efi.img)")
-        ensure_clean_dir(work_dir)
-        run_command(f"xorriso -osirrox on -indev {iso_name} -extract / {work_dir}", f"Extracting ISO file tree to {work_dir}")
-        subprocess.run(["sudo", "chown", "-R", f"{os.getuid()}:{os.getgid()}", work_dir])
-        print("You can now customize the extracted ISO in:", work_dir)
-        if inject_hello:
-            inject_hello_files(work_dir, "efi.img", "boot_hybrid.img")
-        xorriso_cmd = (
-            f"xorriso -as mkisofs -r "
-            f"-V 'NosanaAOS 0.24.04.2 (EFIBIOS)' "
-            f"-o {new_iso} "
-            f"--grub2-mbr boot_hybrid.img "
-            f"-partition_offset 16 "
-            f"--mbr-force-bootable "
-            f"-append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b efi.img "
-            f"-appended_part_as_gpt "
-            f"-iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7 "
-            f"-c '/boot.catalog' "
-            f"-b '/boot/grub/i386-pc/eltorito.img' "
-            f"-no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info "
-            f"-eltorito-alt-boot "
-            f"-e '--interval:appended_partition_2:::' "
-            f"-no-emul-boot "
-            f"{work_dir}"
-        )
-        run_command(xorriso_cmd, f"Rebuilding ISO as {new_iso}")
-        print(f"ISO remaster complete: {new_iso}")
-        if inject_hello:
-            verify_hello_files(new_iso)
-        if not dc_disable_cleanup:
-            print("Cleaning up temp files...")
-            cleanup(temp_paths)
-        else:
-            print("-dc set: Not cleaning up temp files.")
-    except Exception as e:
-        print(f"FATAL ERROR: {e}")
-        if not dc_disable_cleanup:
-            cleanup(temp_paths)
+            print(f"✗ Download failed: {e}")
+            return False
+    else:
+        print(f"Using existing ISO: {iso_filename}")
+    
+    print("Extracting MBR template (boot_hybrid.img)...")
+    run_command(f"dd if={iso_filename} of=boot_hybrid.img bs=1M count=1", "Extracting MBR template")
+    
+    print("Extracting EFI partition (efi.img)...")
+    run_command(f"dd if={iso_filename} of=efi.img bs=512 skip=6608 count=11264", "Extracting EFI partition")
+    
+    work_dir = "working_dir"
+    ensure_clean_dir(work_dir)
+    print(f"Extracting ISO file tree to {os.path.abspath(work_dir)}...")
+    run_command(f"xorriso -osirrox on -indev {iso_filename} -extract / {work_dir}", "Extracting ISO contents")
+    
+    print(f"You can now customize the extracted ISO in: {os.path.abspath(work_dir)}")
+    
+    if inject_hello:
+        inject_hello_files(work_dir, "efi.img", "boot_hybrid.img")
+    
+    new_iso = "NosanaAOS-0.24.04.2.iso"
+    print(f"Rebuilding ISO as {new_iso}...")
+    run_command(f"xorriso -as mkisofs -r -V 'NosanaAOS' -o {new_iso} -J -l -b boot/grub/i386-pc/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot -append_partition 2 0xef efi.img -partition_cyl_align all -isohybrid-mbr boot_hybrid.img -isohybrid-gpt-basdat {work_dir}", "Building hybrid ISO")
+    
+    print(f"ISO remaster complete: {new_iso}")
+    
+    if inject_hello:
+        verify_hello_files(new_iso)
+    
+    if not dc_disable_cleanup:
+        print("Cleaning up temp files...")
+        cleanup(temp_paths)
+    
+    return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.01.9")
-    print("=" * 50)
+    print("Ubuntu ISO Remastering Tool - Version 0.02.0")
+    print("==================================================")
+    
+    if not check_and_install_dependencies():
+        return 1
+    
     dc_disable_cleanup = "-dc" in sys.argv
     inject_hello = "-hello" in sys.argv
-    check_and_install_dependencies()
-    remaster_ubuntu_2204(dc_disable_cleanup, inject_hello)
-    print("\n" + "=" * 50)
+    
+    if not remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
+        return 1
+    
+    print("\n==================================================")
     print("Directory listing:")
-    subprocess.run(["ls", "-tralsh"])
+    run_command("ls -tralsh", "Final directory listing")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
