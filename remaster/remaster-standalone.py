@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version
-Version: 0.02.7-standalone-fixed-v3
+Version: 0.02.7-standalone-debug-v4
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
@@ -17,7 +17,7 @@ AUTOINSTALL_USER_DATA = """#cloud-config
 autoinstall:
   version: 1
   
-  # Interactive sections - only these will be shown to the user
+  # Test basic autoinstall first - only interactive sections should show
   interactive-sections:
     - locale
     - keyboard
@@ -28,58 +28,22 @@ autoinstall:
     - ubuntu-pro
     - drivers
   
-  # Pre-configure everything else to skip those screens entirely
-  
-  # SSH - COMPLETELY DISABLE SSH installation (forces skip of SSH screen)
+  # Force these specific values (should skip their screens entirely)
   ssh:
     install-server: false
-    allow-pw: false
-    authorized-keys: []
-  
-  # Snaps - FORCE empty list (should skip snap selection screen)  
+    
   snaps: []
   
-  # Package selection - force minimal server
   packages:
     - ubuntu-server-minimal
-    
-  # Updates
+  
   updates: security
   
-  # Source configuration
-  source:
-    id: ubuntu-server-minimal
-    search_drivers: true
-  
-  # Explicitly disable features to skip their screens
-  
-  # Refresh installer settings
-  refresh-installer:
-    update: false
-    channel: "stable/ubuntu-24.04"
-  
-  # Debugging and logging
-  reporting:
-    builtin:
-      type: print
-  
-  # Commands to run during installation
-  early-commands:
-    - echo "Autoinstall: Starting with SSH disabled and no snaps" | tee -a /tmp/autoinstall.log
-    
   late-commands:
-    - echo "Autoinstall: Installation completed" | tee -a /var/log/autoinstall.log
-    - systemctl disable snapd.service snapd.socket snapd.seeded.service || true
-    - systemctl mask snapd.service snapd.socket snapd.seeded.service || true  
-    - echo "Autoinstall: SSH server disabled, snaps disabled" | tee -a /var/log/autoinstall.log
+    - echo "AUTOINSTALL WORKED - SSH disabled, no snaps" > /target/var/log/autoinstall-success.log
+    - systemctl --root=/target disable snapd.service snapd.socket || true
     
-  # Reboot settings
   shutdown: reboot
-  
-  # Error handling
-  error-commands:
-    - echo "Autoinstall: Installation failed" | tee -a /var/log/autoinstall-error.log
-    - journalctl -n 50 | tee -a /var/log/autoinstall-error.log
 """
 
 AUTOINSTALL_META_DATA = """instance-id: ubuntu-autoinstall
@@ -91,7 +55,7 @@ set default=0
 
 menuentry "Install Ubuntu Server (Semi-Automated)" {
     set gfxpayload=keep
-    linux /casper/vmlinuz autoinstall ds=nocloud-net;s=/cdrom/server/ --- 
+    linux /casper/vmlinuz autoinstall ds=nocloud-net;s=/cdrom/server/
     initrd /casper/initrd
 }
 
@@ -216,6 +180,34 @@ def inject_autoinstall_files(work_dir):
         f.write(AUTOINSTALL_META_DATA)
     print(f"Created: {meta_data_dst}")
     
+    # Create vendor-data file (sometimes required)
+    vendor_data_dst = os.path.join(server_dir, "vendor-data")
+    with open(vendor_data_dst, 'w') as f:
+        f.write("{}\n")
+    print(f"Created: {vendor_data_dst}")
+    
+    # Also create autoinstall files in the root directory (alternative location)
+    root_user_data = os.path.join(work_dir, "user-data")
+    with open(root_user_data, 'w') as f:
+        f.write(AUTOINSTALL_USER_DATA)
+    print(f"Created: {root_user_data}")
+    
+    root_meta_data = os.path.join(work_dir, "meta-data")
+    with open(root_meta_data, 'w') as f:
+        f.write(AUTOINSTALL_META_DATA)
+    print(f"Created: {root_meta_data}")
+    
+    # Debug: show file contents
+    print("\n--- DEBUG: Autoinstall file verification ---")
+    print(f"user-data size: {os.path.getsize(user_data_dst)} bytes")
+    print(f"meta-data size: {os.path.getsize(meta_data_dst)} bytes")
+    with open(user_data_dst, 'r') as f:
+        lines = f.readlines()
+        print(f"user-data first few lines:")
+        for i, line in enumerate(lines[:5]):
+            print(f"  {i+1}: {line.rstrip()}")
+    print("--- END DEBUG ---\n")
+    
     # Modify GRUB configuration for autoinstall
     grub_cfg_path = os.path.join(work_dir, "boot", "grub", "grub.cfg")
     if os.path.exists(grub_cfg_path):
@@ -240,6 +232,15 @@ def inject_autoinstall_files(work_dir):
                 f.write(GRUB_AUTOINSTALL_CFG + "\n\n# Original GRUB configuration below:\n" + original_grub)
             
             print(f"Modified: {grub_cfg_path}")
+            
+            # Debug: show the kernel command line we added
+            print("\n--- DEBUG: GRUB kernel command ---")
+            lines = GRUB_AUTOINSTALL_CFG.split('\n')
+            for line in lines:
+                if 'linux /casper/vmlinuz' in line:
+                    print(f"Kernel command: {line.strip()}")
+            print("--- END DEBUG ---\n")
+            
         except PermissionError:
             print(f"Warning: Could not modify {grub_cfg_path} (permission denied)")
     else:
@@ -451,7 +452,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-fixed-v3")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-debug-v4")
     print("==================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
