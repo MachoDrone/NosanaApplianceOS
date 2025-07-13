@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.01.2
+Version: 0.01.3
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hellow to inject test files.
 """
@@ -94,7 +94,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hellow):
     iso_name = "ubuntu-24.04.2-live-server-amd64.iso"
     new_iso = "NosanaAOS-0.24.04.2.iso"
     work_dir = os.path.abspath("work_2204")
-    temp_paths = [work_dir, "boot_hybrid.img", "efi.img", iso_name]
+    temp_paths = [work_dir, "boot_hybrid.img", "efi.img"]  # Do NOT include iso_name here
     try:
         # Download ISO if needed
         if not check_file_exists(iso_name):
@@ -178,7 +178,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hellow):
             cleanup(temp_paths)
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.01.2")
+    print("Ubuntu ISO Remastering Tool - Version 0.01.3")
     print("=" * 50)
     dc_disable_cleanup = "-dc" in sys.argv
     inject_hellow = "-hellow" in sys.argv
