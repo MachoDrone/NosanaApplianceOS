@@ -107,10 +107,12 @@ def inject_hello_files(work_dir, efi_img, mbr_img):
 def verify_hello_files(new_iso):
     print("Verifying injected files in new ISO...")
     opt_found = False
+    mount_point = "_iso_mount"
+    
     try:
-        ensure_clean_dir("_iso_mount")
-        run_command(f"sudo mount -o loop {new_iso} _iso_mount", "Mounting new ISO for verification", check=False)
-        opt_path = os.path.join("_iso_mount", "opt", "HelloNOS.OPT")
+        ensure_clean_dir(mount_point)
+        run_command(f"sudo mount -o loop {new_iso} {mount_point}", "Mounting new ISO for verification", check=False)
+        opt_path = os.path.join(mount_point, "opt", "HelloNOS.OPT")
         if os.path.isfile(opt_path):
             with open(opt_path, "r") as f:
                 content = f.read()
@@ -122,8 +124,21 @@ def verify_hello_files(new_iso):
     except Exception as e:
         print(f"FAIL: Error checking HelloNOS.OPT: {e}")
     finally:
-        run_command("sudo umount _iso_mount", "Unmounting ISO after verification", check=False)
-        shutil.rmtree("_iso_mount", ignore_errors=True)
+        # Force unmount with multiple attempts
+        for attempt in range(3):
+            result = run_command(f"sudo umount {mount_point}", "Unmounting ISO after verification", check=False)
+            if result:
+                break
+            if attempt < 2:
+                run_command("sleep 1", "", check=False)
+        
+        # Force unmount if still mounted
+        if os.path.ismount(mount_point):
+            run_command(f"sudo umount -f {mount_point}", "Force unmounting ISO", check=False)
+        
+        # Clean up mount point directory
+        if os.path.exists(mount_point):
+            subprocess.run(["sudo", "rm", "-rf", mount_point], check=False)
     
     # Check ESP partition by reading the ISO directly
     esp_found = False
