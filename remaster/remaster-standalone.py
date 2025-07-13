@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version
-Version: 0.02.7-standalone-debug-v4
+Version: 0.02.7-standalone-debug-v5
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
@@ -55,7 +55,7 @@ set default=0
 
 menuentry "Install Ubuntu Server (Semi-Automated)" {
     set gfxpayload=keep
-    linux /casper/vmlinuz autoinstall ds=nocloud-net;s=/cdrom/server/
+    linux /casper/vmlinuz autoinstall ds=nocloud;s=file:///cdrom/ cloud-config-url=file:///cdrom/user-data
     initrd /casper/initrd
 }
 
@@ -186,6 +186,12 @@ def inject_autoinstall_files(work_dir):
         f.write("{}\n")
     print(f"Created: {vendor_data_dst}")
     
+    # Create network-data file (sometimes required for cloud-init)
+    network_data_dst = os.path.join(server_dir, "network-data")
+    with open(network_data_dst, 'w') as f:
+        f.write("version: 2\n")
+    print(f"Created: {network_data_dst}")
+    
     # Also create autoinstall files in the root directory (alternative location)
     root_user_data = os.path.join(work_dir, "user-data")
     with open(root_user_data, 'w') as f:
@@ -196,6 +202,29 @@ def inject_autoinstall_files(work_dir):
     with open(root_meta_data, 'w') as f:
         f.write(AUTOINSTALL_META_DATA)
     print(f"Created: {root_meta_data}")
+    
+    # Create additional files in root for maximum compatibility
+    root_vendor_data = os.path.join(work_dir, "vendor-data")
+    with open(root_vendor_data, 'w') as f:
+        f.write("{}\n")
+    print(f"Created: {root_vendor_data}")
+    
+    root_network_data = os.path.join(work_dir, "network-data")
+    with open(root_network_data, 'w') as f:
+        f.write("version: 2\n")
+    print(f"Created: {root_network_data}")
+    
+    # Create autoinstall.yaml file (alternative format)
+    autoinstall_yaml = os.path.join(work_dir, "autoinstall.yaml")
+    with open(autoinstall_yaml, 'w') as f:
+        f.write(AUTOINSTALL_USER_DATA.replace("#cloud-config\n", ""))
+    print(f"Created: {autoinstall_yaml}")
+    
+    # Create autoinstall.yml file (another alternative)
+    autoinstall_yml = os.path.join(work_dir, "autoinstall.yml")
+    with open(autoinstall_yml, 'w') as f:
+        f.write(AUTOINSTALL_USER_DATA.replace("#cloud-config\n", ""))
+    print(f"Created: {autoinstall_yml}")
     
     # Debug: show file contents
     print("\n--- DEBUG: Autoinstall file verification ---")
@@ -239,6 +268,20 @@ def inject_autoinstall_files(work_dir):
             for line in lines:
                 if 'linux /casper/vmlinuz' in line:
                     print(f"Kernel command: {line.strip()}")
+            print("--- END DEBUG ---\n")
+            
+            print("--- DEBUG: Files created for autoinstall detection ---")
+            autoinstall_files = [
+                "/server/user-data", "/server/meta-data", "/server/vendor-data", "/server/network-data",
+                "/user-data", "/meta-data", "/vendor-data", "/network-data", 
+                "/autoinstall.yaml", "/autoinstall.yml"
+            ]
+            for af in autoinstall_files:
+                full_path = os.path.join(work_dir, af.lstrip('/'))
+                if os.path.exists(full_path):
+                    print(f"  ✓ {af} ({os.path.getsize(full_path)} bytes)")
+                else:
+                    print(f"  ✗ {af} (missing)")
             print("--- END DEBUG ---\n")
             
         except PermissionError:
@@ -452,7 +495,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-debug-v4")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-debug-v5")
     print("==================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
