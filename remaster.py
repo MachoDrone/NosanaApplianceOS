@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.00.5
+Version: 0.00.6
 
 Purpose: Downloads Ubuntu 24.04.2 Live Server ISO for remastering purposes.
 Expectations: 
@@ -11,6 +11,7 @@ Expectations:
 - Will be frequently edited with version increments
 - Handles missing dependencies gracefully
 - Auto-installs all required dependencies with no user interaction
+- Skips download if ISO already exists
 """
 
 import os
@@ -129,8 +130,19 @@ def check_and_install_dependencies():
     print("All dependencies ready!")
     return True
 
+def check_file_exists(filename):
+    """Check if the ISO file already exists and is not empty"""
+    if os.path.exists(filename):
+        file_size = os.path.getsize(filename)
+        if file_size > 0:
+            # Convert to GB for display
+            size_gb = file_size / (1024**3)
+            print(f"✓ ISO file already exists: {filename} ({size_gb:.2f} GB)")
+            return True
+    return False
+
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.00.5")
+    print("Ubuntu ISO Remastering Tool - Version 0.00.6")
     print("=" * 50)
     
     # Check and install dependencies
@@ -145,42 +157,46 @@ def main():
         print(f"Critical error: {e}")
         cleanup_and_exit()
     
-    # Download URL
-    url = "https://mirror.pilotfiber.com/ubuntu-iso/24.04.2/ubuntu-24.04.2-live-server-amd64.iso"
+    # Download URL and filename
+    url = "https://ubuntu.mirror.garr.it/releases/noble/ubuntu-24.04.2-live-server-amd64.iso"
     filename = "ubuntu-24.04.2-live-server-amd64.iso"
     
-    print(f"Downloading: {url}")
-    print(f"Filename: {filename}")
-    print()
-    
-    try:
-        # Start download with progress bar
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
+    # Check if file already exists
+    if check_file_exists(filename):
+        print("Skipping download - file already exists.")
+    else:
+        print(f"Downloading: {url}")
+        print(f"Filename: {filename}")
+        print()
         
-        # Get total file size
-        total_size = int(response.headers.get('content-length', 0))
-        
-        # Download with tqdm progress bar
-        with open(filename, 'wb') as file, tqdm(
-            desc=filename,
-            total=total_size,
-            unit='iB',
-            unit_scale=True,
-            unit_divisor=1024,
-        ) as pbar:
-            for data in response.iter_content(chunk_size=1024):
-                size = file.write(data)
-                pbar.update(size)
-        
-        print(f"\nDownload completed: {filename}")
-        
-    except requests.exceptions.RequestException as e:
-        print(f"Error downloading file: {e}")
-        cleanup_and_exit()
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        cleanup_and_exit()
+        try:
+            # Start download with progress bar
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+            
+            # Get total file size
+            total_size = int(response.headers.get('content-length', 0))
+            
+            # Download with tqdm progress bar
+            with open(filename, 'wb') as file, tqdm(
+                desc=filename,
+                total=total_size,
+                unit='iB',
+                unit_scale=True,
+                unit_divisor=1024,
+            ) as pbar:
+                for data in response.iter_content(chunk_size=1024):
+                    size = file.write(data)
+                    pbar.update(size)
+            
+            print(f"\nDownload completed: {filename}")
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error downloading file: {e}")
+            cleanup_and_exit()
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            cleanup_and_exit()
     
     # Always end with ls -tralsh
     print("\n" + "=" * 50)
