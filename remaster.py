@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.02.5
+Version: 0.02.6
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files.
 """
@@ -9,7 +9,6 @@ Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more
 import os
 import sys
 import subprocess
-import shutil
 
 def run_command(cmd, description="", check=True):
     print(f"{description}...")
@@ -102,20 +101,16 @@ def cleanup(temp_paths):
             # Force unmount if it's a mount point
             force_unmount(path)
             
-            try:
-                shutil.rmtree(path, ignore_errors=True)
-            except Exception:
-                pass
-            if os.path.isdir(path):
-                print(f"shutil.rmtree failed for {path}, trying sudo rm -rf")
-                subprocess.run(["sudo", "rm", "-rf", path])
-            if os.path.isdir(path):
-                print(f"ERROR: Could not remove directory {path} after all attempts.")
+            # Use sudo rm -rf directly for directories (more reliable with sudo-created files)
+            result = subprocess.run(["sudo", "rm", "-rf", path], capture_output=True)
+            if result.returncode != 0:
+                print(f"ERROR: Could not remove directory {path}")
         elif os.path.isfile(path):
             try:
                 os.remove(path)
             except Exception:
-                pass
+                # Try with sudo if regular removal fails
+                subprocess.run(["sudo", "rm", "-f", path], capture_output=True)
 
 def ensure_clean_dir(path):
     if os.path.exists(path):
@@ -375,7 +370,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.5")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.6")
     print("==================================================")
     
     if not check_and_install_dependencies():
@@ -389,7 +384,16 @@ def main():
     
     print("\n==================================================")
     print("Directory listing:")
-    run_command("ls -tralsh", "Final directory listing")
+    # Use subprocess directly to ensure ls -tralsh actually runs
+    try:
+        result = subprocess.run(["ls", "-tralsh"], capture_output=True, text=True)
+        if result.returncode == 0:
+            print(result.stdout)
+        else:
+            print("ls command failed")
+    except Exception as e:
+        print(f"Error running ls: {e}")
+    
     return 0
 
 if __name__ == "__main__":
