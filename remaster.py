@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.01.0
+Version: 0.01.1
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup.
 """
@@ -163,7 +163,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup):
             cleanup(temp_paths)
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.01.0")
+    print("Ubuntu ISO Remastering Tool - Version 0.01.1")
     print("=" * 50)
     dc_disable_cleanup = "-dc" in sys.argv
     check_and_install_dependencies()
