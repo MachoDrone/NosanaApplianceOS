@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version
-Version: 0.02.7-standalone
+Version: 0.02.7-standalone-fixed
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
-This standalone version includes autoinstall configuration files inline.
+This standalone version includes autoinstall configuration files inline and handles file permissions properly.
 """
 
 import os
@@ -184,6 +184,9 @@ def cleanup(temp_paths):
         if os.path.exists(path):
             if os.path.isdir(path):
                 force_unmount(path)
+                # Fix permissions before removing
+                subprocess.run(f"sudo chmod -R 755 {path}", shell=True, capture_output=True)
+                subprocess.run(f"sudo chown -R {os.getuid()}:{os.getgid()} {path}", shell=True, capture_output=True)
                 subprocess.run(f"rm -rf {path}", shell=True)
             else:
                 try:
@@ -194,9 +197,11 @@ def cleanup(temp_paths):
 
 def ensure_clean_dir(path):
     if os.path.exists(path):
+        # Fix permissions before trying to remove
+        subprocess.run(f"sudo chmod -R 755 {path}", shell=True, capture_output=True)
+        subprocess.run(f"sudo chown -R {os.getuid()}:{os.getgid()} {path}", shell=True, capture_output=True)
         subprocess.run(f"rm -rf {path}", shell=True)
     os.makedirs(path, exist_ok=True)
-    subprocess.run(["sudo", "chown", f"{os.getuid()}:{os.getgid()}", path])
 
 def inject_autoinstall_files(work_dir):
     print("Injecting autoinstall configuration...")
@@ -220,6 +225,9 @@ def inject_autoinstall_files(work_dir):
     # Modify GRUB configuration for autoinstall
     grub_cfg_path = os.path.join(work_dir, "boot", "grub", "grub.cfg")
     if os.path.exists(grub_cfg_path):
+        # Ensure we can modify the file
+        subprocess.run(f"chmod 644 {grub_cfg_path}", shell=True, capture_output=True)
+        
         # Backup original grub.cfg
         try:
             import shutil
@@ -229,14 +237,17 @@ def inject_autoinstall_files(work_dir):
             print("Warning: Could not backup grub.cfg (permission denied)")
         
         # Read original GRUB config
-        with open(grub_cfg_path, 'r') as f:
-            original_grub = f.read()
-        
-        # Write new GRUB config with autoinstall menu
-        with open(grub_cfg_path, 'w') as f:
-            f.write(GRUB_AUTOINSTALL_CFG + "\n\n# Original GRUB configuration below:\n" + original_grub)
-        
-        print(f"Modified: {grub_cfg_path}")
+        try:
+            with open(grub_cfg_path, 'r') as f:
+                original_grub = f.read()
+            
+            # Write new GRUB config with autoinstall menu
+            with open(grub_cfg_path, 'w') as f:
+                f.write(GRUB_AUTOINSTALL_CFG + "\n\n# Original GRUB configuration below:\n" + original_grub)
+            
+            print(f"Modified: {grub_cfg_path}")
+        except PermissionError:
+            print(f"Warning: Could not modify {grub_cfg_path} (permission denied)")
     else:
         print(f"Warning: {grub_cfg_path} not found")
     
@@ -373,7 +384,12 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     work_dir = "working_dir"
     ensure_clean_dir(work_dir)
     print(f"Extracting ISO file tree to {os.path.abspath(work_dir)}...")
-    run_command(f"xorriso -osirrox on -indev {iso_filename} -extract / {work_dir}", "Extracting ISO contents")
+    result = run_command(f"xorriso -osirrox on -indev {iso_filename} -extract / {work_dir}", "Extracting ISO contents", check=False)
+    
+    # Fix permissions after extraction
+    print("Fixing file permissions after extraction...")
+    subprocess.run(f"sudo chmod -R 755 {work_dir}", shell=True, capture_output=True)
+    subprocess.run(f"sudo chown -R {os.getuid()}:{os.getgid()} {work_dir}", shell=True, capture_output=True)
     
     print(f"You can now customize the extracted ISO in: {os.path.abspath(work_dir)}")
     
@@ -441,7 +457,10 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-fixed")
+    print("==================================================")
+    print("NOTE: This script requires sudo privileges for file permission handling")
+    print("Make sure you can run sudo commands when prompted")
     print("==================================================")
     
     if not check_and_install_dependencies():
