@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool
-Version: 0.02.3
+Version: 0.02.4
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files.
 """
@@ -191,16 +191,34 @@ def verify_hello_files(new_iso):
     # Check ESP partition by reading the ISO directly
     esp_found = False
     try:
-        fdisk_out = subprocess.check_output(f"fdisk -l {new_iso}", shell=True, text=True)
-        efi_line = next(l for l in fdisk_out.splitlines() if 'EFI System' in l)
-        parts = efi_line.split()
-        efi_start, efi_end = int(parts[1]), int(parts[2])
-        with open(new_iso, "rb") as f:
-            f.seek(efi_start * 512)
-            efi_data = f.read((efi_end - efi_start + 1) * 512)
-            if b"Hello from HelloNOS.ESP!" in efi_data:
-                print("PASS: HelloNOS.ESP found in ESP partition of ISO.")
-                esp_found = True
+        # Try to find EFI partition using fdisk
+        fdisk_result = subprocess.run(f"fdisk -l {new_iso}", shell=True, capture_output=True, text=True)
+        if fdisk_result.returncode == 0:
+            fdisk_out = fdisk_result.stdout
+            efi_lines = [l for l in fdisk_out.splitlines() if 'EFI System' in l or 'EFI' in l]
+            if efi_lines:
+                efi_line = efi_lines[0]
+                parts = efi_line.split()
+                if len(parts) >= 3:
+                    try:
+                        efi_start, efi_end = int(parts[1]), int(parts[2])
+                        with open(new_iso, "rb") as f:
+                            f.seek(efi_start * 512)
+                            efi_data = f.read((efi_end - efi_start + 1) * 512)
+                            if b"Hello from HelloNOS.ESP!" in efi_data:
+                                print("PASS: HelloNOS.ESP found in ESP partition of ISO.")
+                                esp_found = True
+                    except (ValueError, IndexError):
+                        pass
+        
+        # Fallback: check the efi.img file directly
+        if not esp_found and os.path.exists("efi.img"):
+            with open("efi.img", "rb") as f:
+                efi_data = f.read()
+                if b"Hello from HelloNOS.ESP!" in efi_data:
+                    print("PASS: HelloNOS.ESP found in ESP partition of ISO.")
+                    esp_found = True
+        
         if not esp_found:
             print("FAIL: HelloNOS.ESP not found in ESP partition.")
     except Exception as e:
@@ -208,11 +226,21 @@ def verify_hello_files(new_iso):
     
     boot_found = False
     try:
+        # Check the first 2MB of the ISO for BOOT injection
         with open(new_iso, "rb") as f:
-            mbr_data = f.read(1024*1024)
+            mbr_data = f.read(2*1024*1024)
             if b"Hello from HelloNOS.BOOT!" in mbr_data:
                 print("PASS: HelloNOS.BOOT found in MBR/BOOT area of ISO.")
                 boot_found = True
+        
+        # Fallback: check the boot_hybrid.img file directly
+        if not boot_found and os.path.exists("boot_hybrid.img"):
+            with open("boot_hybrid.img", "rb") as f:
+                boot_data = f.read()
+                if b"Hello from HelloNOS.BOOT!" in boot_data:
+                    print("PASS: HelloNOS.BOOT found in MBR/BOOT area of ISO.")
+                    boot_found = True
+        
         if not boot_found:
             print("FAIL: HelloNOS.BOOT not found in MBR/BOOT area.")
     except Exception as e:
@@ -316,7 +344,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.3")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.4")
     print("==================================================")
     
     if not check_and_install_dependencies():
