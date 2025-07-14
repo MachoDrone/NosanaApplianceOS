@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version
-Version: 0.02.7-standalone-working-v6
+Version: 0.02.7-standalone-fixed-v7
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
@@ -45,14 +45,22 @@ autoinstall:
     
   snaps: []
   
+  # Force ONLY minimal server installation (exclude full ubuntu-server)
   packages:
     - ubuntu-server-minimal
+    - "!ubuntu-server"
+    - "!snapd"
   
   updates: security
   
+  # More aggressive snap and service removal
   late-commands:
-    - echo "AUTOINSTALL SUCCESS - SSH disabled, no snaps, proxy testing enabled" > /target/var/log/autoinstall-success.log
-    - systemctl --root=/target disable snapd.service snapd.socket || true
+    - echo "AUTOINSTALL SUCCESS - Removing snaps and services" > /target/var/log/autoinstall-success.log
+    - chroot /target systemctl disable snapd.service snapd.socket snapd.seeded.service || true
+    - chroot /target systemctl mask snapd.service snapd.socket snapd.seeded.service || true
+    - chroot /target apt-get remove --purge -y snapd ubuntu-server || true
+    - chroot /target apt-get autoremove -y || true
+    - echo "Final verification - SSH disabled, snaps removed, minimal only" >> /target/var/log/autoinstall-success.log
     
   shutdown: reboot
 """
@@ -506,7 +514,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-working-v6")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-fixed-v7")
     print("==================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
