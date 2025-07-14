@@ -45,7 +45,7 @@ autoinstall:
   
   late-commands:
     - echo "AUTOINSTALL SUCCESS" > /target/var/log/autoinstall-success.log
-    - wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/late.sh | python3
+    - wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/late.sh | bash
     
   shutdown: reboot
 """
