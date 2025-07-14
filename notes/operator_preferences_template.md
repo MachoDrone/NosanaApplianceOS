@@ -8,22 +8,22 @@ Fill in your choices below each item, then save the file. We’ll integrate them
    - [ ] WireGuard + simple pass-phrase
    - [ ] WireGuard + TOTP (Google Authenticator)
    - [ ] WireGuard + hardware key / WebAuthn
-   - Notes / Custom:
+   - Notes / Custom: PIN (4–6 digits) required on mobile devices; PCs/laptops use Ubuntu user password.
 
 2. Text-Menu (TUI) Main Screen – Metrics to display (check all that apply):
    - [x] GPU utilisation / temperature
-   - [x] Nosana job queue depth & current job
+   - [ ] Nosana job queue depth & current job
    - [x] Active Docker containers
    - [x] CPU & RAM usage
    - [ ] Network throughput
-   - [ ] Power draw
+   - [x] Power draw
    - [ ] Disk usage / SMART status
-   - Other metrics:
+   - Other metrics: host health summary
 
    One-keystroke commands (check all that apply):
-   - [x] Restart Nosana container stack
-   - [x] Pull latest appliance updates
-   - [x] Reboot host
+   - [x] Start host (`./starthost.sh`)
+   - [x] Stop host (`./stophost.sh`)
+   - [x] Reboot host (`./reboot.sh`)
    - [x] Tail logs of selected container
    - [x] Clear old logs
    - Other commands:
@@ -31,17 +31,17 @@ Fill in your choices below each item, then save the file. We’ll integrate them
 3. Solana Wallet Backup & Restore
    Preferred methods (check all that apply):
    - [x] Encrypted USB drive copy
-   - [x] Encrypted QR code export
+   - [x] Encrypted QR code export (via Web UI)
    - [ ] Seed phrase
    - [ ] We do NOT want to document backup
    - Notes / Custom:
 
 4. Immutable OS Hardening Level
    - [ ] Fully locked-down (no root writes)
-   - [x] Developer mode switch (temporary RW root)
+   - [ ] Developer mode switch (temporary RW root)
 
    Extra safeguards (check all that apply):
-   - [x] Secure Boot
-   - [x] dm-verity
+   - [ ] Secure Boot
+   - [ ] dm-verity
    - [ ] TPM / remote attestation (future)
    - Notes / Custom:
