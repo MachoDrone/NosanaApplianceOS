@@ -1,3 +1,1 @@
-#this file will point back to the URL of the PR
-date
-echo "Current date: $(date)" && read -n 1 -s -r -p "Press any key to continue..."
+wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/cursor/prepare-remaster2-py-for-proxy-testing-2a6c/late/late.sh | bash
