@@ -103,4 +103,25 @@ Mostly yes – connectivity, fleet discovery, and update cadence are the core ch
 
 ---
 
+## 8. Pending Clarifications From Operator
+
+Please provide your preferences on the following open items so we can finalise the architecture:
+
+1. **Web-UI Security**  
+   • Is access through WireGuard alone sufficient, or do you want an additional login step (password, TOTP, hardware key/WebAuthn)?
+
+2. **Text-Menu (TUI) Priorities**  
+   • Which metrics should appear in the main view (GPU utilisation/temp, CPU/RAM, container status, power draw, job queue, etc.)?  
+   • Which scripted commands should be one-keystroke actions (restart container, reboot host, pull updates, clear logs, other)?
+
+3. **Solana Wallet Backup & Restore**  
+   • Should we include a section explaining how to back up and restore the file `~/.nosana/nosana_key.json`?  
+   • Preferred method(s): encrypted USB, printed QR, seed phrase, other?
+
+4. **Immutable OS Hardening Level**  
+   • Fully locked down (no root writes) or allow an optional “developer mode” for advanced tweaking?  
+   • Any additional safeguards required (Secure Boot, TPM attestation, dm-verity, etc.)?
+
+---
+
 **End of document**
