@@ -52,10 +52,9 @@ autoinstall:
   
   updates: security
   
-  # Simple cleanup after installation
+  # Simple cleanup after installation  
   late-commands:
-    - echo "AUTOINSTALL SUCCESS - SSH disabled, minimal server installed" > /target/var/log/autoinstall-success.log
-    - echo "PROXY UI FIX: Mirror test results should now display in proper UI widget" >> /target/var/log/autoinstall-success.log
+    - echo "AUTOINSTALL SUCCESS" > /target/var/log/autoinstall-success.log
     
   shutdown: reboot
 """
