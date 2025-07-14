@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version
-Version: 0.02.7-standalone-fixed-v8
+Version: 0.02.7-standalone-simple-v9
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
@@ -51,21 +51,9 @@ autoinstall:
   
   updates: security
   
-  # Clean up after installation completes
+  # Simple cleanup after installation
   late-commands:
-    - echo "AUTOINSTALL SUCCESS - Starting cleanup" > /target/var/log/autoinstall-success.log
-    - echo "Step 1: Disabling and masking snapd services" >> /target/var/log/autoinstall-success.log
-    - chroot /target systemctl disable snapd.service snapd.socket snapd.seeded.service || true
-    - chroot /target systemctl mask snapd.service snapd.socket snapd.seeded.service || true
-    - echo "Step 2: Removing snapd and full ubuntu-server packages" >> /target/var/log/autoinstall-success.log
-    - chroot /target apt-get update
-    - chroot /target apt-get remove --purge -y snapd ubuntu-server || true
-    - chroot /target apt-get autoremove --purge -y || true
-    - chroot /target apt-get autoclean || true
-    - echo "Step 3: Final verification" >> /target/var/log/autoinstall-success.log
-    - chroot /target dpkg -l | grep ubuntu-server >> /target/var/log/autoinstall-success.log || true
-    - chroot /target dpkg -l | grep snapd >> /target/var/log/autoinstall-success.log || echo "snapd not found (good)" >> /target/var/log/autoinstall-success.log
-    - echo "FINAL STATUS: SSH disabled, snaps removed, minimal server only" >> /target/var/log/autoinstall-success.log
+    - echo "AUTOINSTALL SUCCESS - SSH disabled, minimal server installed" > /target/var/log/autoinstall-success.log
     
   shutdown: reboot
 """
@@ -250,6 +238,41 @@ def inject_autoinstall_files(work_dir):
         f.write(AUTOINSTALL_USER_DATA.replace("#cloud-config\n", ""))
     print(f"Created: {autoinstall_yml}")
     
+    # Create a post-install cleanup script for manual execution
+    cleanup_script = os.path.join(work_dir, "cleanup-minimal.sh")
+    cleanup_content = """#!/bin/bash
+# NosanaAOS Post-Install Cleanup Script
+# Run this after first boot to minimize the installation
+
+echo "Starting NosanaAOS minimization..."
+
+# Disable and remove snapd
+echo "Disabling snapd services..."
+systemctl disable snapd.service snapd.socket snapd.seeded.service 2>/dev/null || true
+systemctl mask snapd.service snapd.socket snapd.seeded.service 2>/dev/null || true
+
+echo "Removing snapd packages..."
+apt-get update
+apt-get remove --purge -y snapd ubuntu-server 2>/dev/null || true
+apt-get autoremove --purge -y
+apt-get autoclean
+
+echo "Verification:"
+echo "Ubuntu Server packages installed:"
+dpkg -l | grep ubuntu-server || echo "  None found"
+echo "Snapd packages:"
+dpkg -l | grep snapd || echo "  None found (good!)"
+echo "SSH service status:"
+systemctl status ssh 2>/dev/null || echo "  Not installed (good!)"
+
+echo "NosanaAOS minimization complete!"
+echo "Total packages installed: $(dpkg -l | grep '^ii' | wc -l)"
+"""
+    with open(cleanup_script, 'w') as f:
+        f.write(cleanup_content)
+    os.chmod(cleanup_script, 0o755)
+    print(f"Created: {cleanup_script}")
+    
     # Debug: show file contents
     print("\n--- DEBUG: Autoinstall file verification ---")
     print(f"user-data size: {os.path.getsize(user_data_dst)} bytes")
@@ -298,7 +321,7 @@ def inject_autoinstall_files(work_dir):
             autoinstall_files = [
                 "/server/user-data", "/server/meta-data", "/server/vendor-data", "/server/network-data",
                 "/user-data", "/meta-data", "/vendor-data", "/network-data", 
-                "/autoinstall.yaml", "/autoinstall.yml"
+                "/autoinstall.yaml", "/autoinstall.yml", "/cleanup-minimal.sh"
             ]
             for af in autoinstall_files:
                 full_path = os.path.join(work_dir, af.lstrip('/'))
@@ -307,6 +330,7 @@ def inject_autoinstall_files(work_dir):
                 else:
                     print(f"  ✗ {af} (missing)")
             print("--- END DEBUG ---\n")
+            print("NOTE: After installation, run '/cleanup-minimal.sh' as root to minimize the system")
             
         except PermissionError:
             print(f"Warning: Could not modify {grub_cfg_path} (permission denied)")
@@ -519,7 +543,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-fixed-v8")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-simple-v9")
     print("==================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
