@@ -66,7 +66,9 @@ Operators can still run **their own containers** – stored on `/var/lib/docker`
 
 ## 5. Remote Script Execution (Optional)
 
-Operators may choose to enable a **“script switchboard”**: small shell scripts stored in the same GitHub repo as the update channel.  Each script is described by a YAML manifest (name, description, command).  When the operator flips a feature switch in the UI, the appliance pulls the script and runs it locally, streaming stdout/err back to the requester over WireGuard.
+Operators may choose to enable a **“script switchboard”**: small shell scripts stored in the same GitHub repo as the update channel.  Each script is described by a YAML manifest (name, description, command).
+
+When the operator taps/clicks a switch _both the Web UI and the TUI_ show a confirmation dialog (“Are you sure?”) before the script is executed. Output is then streamed back (stdout/err) over WireGuard.
 
 No third-party accounts are required, and signing is optional—if you prefer added safety we can extend this later with GPG-signed commits.
 
@@ -80,7 +82,7 @@ No third-party accounts are required, and signing is optional—if you prefer ad
 | **6.2 Local Text UI** | Terminal User Interface (Python Textual or Go BubbleTea) | • Available on the local console (HDMI/keyboard) **and** over SSH<br>• Mirrors all web features: metrics dashboard, logs tail, script launcher<br>• Auto-starts if web UI is unreachable or when no HDMI is present |
 | **6.3 Feature Parity** | Single gRPC/HTTP API | • Both UIs call the same endpoints defined in a shared protobuf<br>• Command catalogue stored in YAML → automatically rendered in both UIs<br>• CI checks ensure new API methods are implemented by both clients before release |
 | **6.4 No External Dependencies** | Served directly from each host | • Static web assets bundled into the `nosana-agent` image<br>• TUI binary shipped alongside the agent; no package installs needed at runtime |
-| **6.5 Mobile-First UX** | Design / Accessibility | • Touch targets ≥ 48 px, readable fonts, high-contrast palette<br>• Network-loss tolerant: caches last 24 h of metrics locally<br>• Quick-action buttons for common scripts (restart container, purge logs) |
+| **6.5 Mobile-First UX** | Design / Accessibility | • Touch targets ≥ 48 px, readable fonts<br>• **Dark-mode by default and color-blind friendly palette**<br>• Network-loss tolerant: caches last 24 h of metrics locally<br>• Quick-action buttons for common scripts with confirmation dialogs |
 
 ---
 
@@ -117,26 +119,19 @@ Below decisions reflect the recommended defaults based on operator feedback and 
    • PIN hashes are stored (bcrypt) on the writable partition and can be reset from the TUI.
 
 2. **Text-Menu (TUI) Main Screen**  
-   _Metrics shown at a glance_  
-   • GPU utilisation & temperature (per card)  
-   • CPU & RAM usage  
-   • Active Docker containers status  
-   • Power draw (per host)  
-   • One-line host health summary (up, down, frozen)  
+   _At-a-glance view_  
+   • One-line status per host: **up / down / frozen**  
+   
    _One-keystroke actions_  
    • Start host (`./starthost.sh`)  
    • Stop host (`./stophost.sh`)  
    • Reboot host (`./reboot.sh`)
 
 3. **Solana Wallet Backup & Restore**  
-   • Wallet backup & restore moves into the Web UI: operators can **download** or **upload** the encrypted key from any Windows/macOS/Linux laptop or phone.  
-   • Two options offered: save to an **encrypted USB drive** or display/save an **encrypted QR code** for printing.  
-   • Nosana never sees or stores the private key.
+   • Handled via the Web UI: download/upload an **encrypted USB** copy or display an **encrypted QR code** that can be scanned from any phone. Nosana never sees the key.
 
 4. **Immutable OS Hardening**  
-   • Full hardening strategy **TBD** — decisions postponed until the Nosana host software is fully assessed.  
-   • Current prototype keeps the base image read-only but does **not** enable Secure Boot / dm-verity yet.  
-   • A future “developer mode” and additional safeguards will be revisited once requirements are clearer.
+   • **TBD** — full hardening strategy will be defined after deeper review of the Nosana host software. Current prototype keeps the root FS read-only; additional safeguards (Secure Boot, dm-verity, TPM) are deferred.
 
 ---
 
