@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version
-Version: 0.02.7-standalone-simple-v9
+Version: 0.02.7-standalone-proxy-v10
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
@@ -28,16 +28,20 @@ autoinstall:
     - ubuntu-pro
     - drivers
   
-  # Proxy configuration - enable mirror testing
+  # Proxy configuration - enable mirror testing and location detection
   apt:
     geoip: true
     preserve_sources_list: false
+    disable_components: []
     primary:
       - arches: [amd64, i386]
         uri: http://archive.ubuntu.com/ubuntu
     security:
       - arches: [amd64, i386]
         uri: http://security.ubuntu.com/ubuntu
+  
+  # Enable proxy testing by providing sources configuration
+  proxy: null
   
   # Force these specific values (should skip their screens entirely)
   ssh:
@@ -543,7 +547,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-simple-v9")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-proxy-v10")
     print("==================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
