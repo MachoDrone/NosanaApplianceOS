@@ -14,37 +14,43 @@ AUTOINSTALL_USER_DATA = """#cloud-config
 autoinstall:
   version: 1
   
-  # Interactive sections - user can configure these
-  interactive-sections:
-    - locale
-    - keyboard
-    - network
-    - proxy
-    - storage
-    - identity
-    - ubuntu-pro
-    - drivers
+  # Leave these sections unconfigured to remain interactive:
+  # - locale (language selection)
+  # - keyboard (keyboard layout)
+  # - network (network configuration)
+  # - proxy (proxy configuration with mirror testing)
+  # - storage (guided storage configuration)
+  # - identity (profile configuration)
+  # - ubuntu-advantage (Ubuntu Pro)
+  # - drivers (third-party drivers)
   
   # Explicitly configure proxy section to use full interactive mode
   proxy: ~
   
-  # Don't configure apt at all - let installer handle mirrors naturally
-  # This prevents autoinstall from interfering with proxy/mirror testing
+  # Enable proper mirror testing and geographic IP detection
   apt:
     disable_components: []
     preserve_sources_list: true
+    geoip: true
+    primary:
+      - arches: [amd64, i386]
+        uri: "http://archive.ubuntu.com/ubuntu"
+    security:
+      - arches: [amd64, i386]
+        uri: "http://security.ubuntu.com/ubuntu"
   
-  # Force minimal server installation
+  # Force minimal server installation - this skips the installation type screen
   source:
     id: ubuntu-server-minimal
     search_drivers: true
   
-  # Force these specific values (should skip their screens entirely)  
+  # Force SSH disabled - this skips the SSH configuration screen entirely
   ssh:
     install-server: false
     allow-pw: false
     authorized-keys: []
     
+  # Force no snaps - this skips the featured server snaps screen entirely
   snaps: []
   
   # Use source selection instead of packages
@@ -68,7 +74,7 @@ set default=0
 
 menuentry "Install Ubuntu Server (Semi-Automated)" {
     set gfxpayload=keep
-    linux /casper/vmlinuz autoinstall ds=nocloud;s=file:///cdrom/server/ console=tty0 console=ttyS0,115200n8
+    linux /casper/vmlinuz autoinstall ds=nocloud;s=file:///cdrom/ cloud-config-url=file:///cdrom/user-data console=tty0 console=ttyS0,115200n8
     initrd /casper/initrd
 }
 
@@ -187,29 +193,60 @@ def inject_autoinstall_files(work_dir):
     server_dir = os.path.join(work_dir, "server")
     os.makedirs(server_dir, exist_ok=True)
     
-    # Create user-data file
-    user_data_dst = os.path.join(server_dir, "user-data")
-    with open(user_data_dst, 'w') as f:
+    # Create autoinstall files in /server/ directory
+    user_data_server = os.path.join(server_dir, "user-data")
+    with open(user_data_server, 'w') as f:
         f.write(AUTOINSTALL_USER_DATA)
-    print(f"Created: {user_data_dst}")
+    print(f"Created: {user_data_server}")
     
-    # Create meta-data file
-    meta_data_dst = os.path.join(server_dir, "meta-data")
-    with open(meta_data_dst, 'w') as f:
+    meta_data_server = os.path.join(server_dir, "meta-data")
+    with open(meta_data_server, 'w') as f:
         f.write(AUTOINSTALL_META_DATA)
-    print(f"Created: {meta_data_dst}")
+    print(f"Created: {meta_data_server}")
     
-    # Create vendor-data file (sometimes required)
-    vendor_data_dst = os.path.join(server_dir, "vendor-data")
-    with open(vendor_data_dst, 'w') as f:
+    vendor_data_server = os.path.join(server_dir, "vendor-data")
+    with open(vendor_data_server, 'w') as f:
         f.write("{}\n")
-    print(f"Created: {vendor_data_dst}")
+    print(f"Created: {vendor_data_server}")
     
-    # Create network-data file (sometimes required for cloud-init)
-    network_data_dst = os.path.join(server_dir, "network-data")
-    with open(network_data_dst, 'w') as f:
+    network_data_server = os.path.join(server_dir, "network-data")
+    with open(network_data_server, 'w') as f:
         f.write("{}\n")
-    print(f"Created: {network_data_dst}")
+    print(f"Created: {network_data_server}")
+    
+    # ALSO create files in root directory for multiple detection methods
+    user_data_root = os.path.join(work_dir, "user-data")
+    with open(user_data_root, 'w') as f:
+        f.write(AUTOINSTALL_USER_DATA)
+    print(f"Created: {user_data_root}")
+    
+    meta_data_root = os.path.join(work_dir, "meta-data")
+    with open(meta_data_root, 'w') as f:
+        f.write(AUTOINSTALL_META_DATA)
+    print(f"Created: {meta_data_root}")
+    
+    vendor_data_root = os.path.join(work_dir, "vendor-data")
+    with open(vendor_data_root, 'w') as f:
+        f.write("{}\n")
+    print(f"Created: {vendor_data_root}")
+    
+    network_data_root = os.path.join(work_dir, "network-data")
+    with open(network_data_root, 'w') as f:
+        f.write("{}\n")
+    print(f"Created: {network_data_root}")
+    
+    # Create additional autoinstall.yaml formats for maximum compatibility
+    autoinstall_yaml_content = AUTOINSTALL_USER_DATA.replace("#cloud-config\n", "")
+    
+    autoinstall_yaml = os.path.join(work_dir, "autoinstall.yaml")
+    with open(autoinstall_yaml, 'w') as f:
+        f.write(autoinstall_yaml_content)
+    print(f"Created: {autoinstall_yaml}")
+    
+    autoinstall_yml = os.path.join(work_dir, "autoinstall.yml")
+    with open(autoinstall_yml, 'w') as f:
+        f.write(autoinstall_yaml_content)
+    print(f"Created: {autoinstall_yml}")
     
     # Modify GRUB configuration to include autoinstall option
     grub_cfg = os.path.join(work_dir, "boot", "grub", "grub.cfg")
