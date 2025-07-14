@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Production Ready Version (remaster3.py)
-Version: 0.03.0-production
+Version: 0.03.1-production
 
 Purpose: Securely downloads and remasters Ubuntu ISOs (22.04+) with hybrid MBR+EFI support.
 Follows HybridRemasterInstructions.txt for proper ISO creation.
@@ -46,32 +46,34 @@ MIN_ISO_SIZE_MB = 100
 EFI_PARTITION_TYPE = "28732ac11ff8d211ba4b00a0c93ec93b"
 ISO_MBR_PART_TYPE = "a2a0d0ebe5b9334487c068b6b72699c7"
 
-# Autoinstall configuration with snap disabled instead of removed
+# Autoinstall configuration - KEEP ONLY THESE INTERACTIVE, FORCE THE REST
 AUTOINSTALL_USER_DATA = """#cloud-config
 autoinstall:
   version: 1
   
-  # Interactive sections - let user configure everything
+  # Interactive sections - user can configure these
   interactive-sections:
     - locale
     - keyboard  
     - network
     - proxy
-    - apt
     - storage
     - identity
     - ubuntu-pro
     - drivers
   
-  # Only force the absolute minimum
+  # Force minimal server installation from the start
   source:
     id: ubuntu-server-minimal
     search_drivers: true
   
+  # Force these specific values (should skip their screens entirely)
   ssh:
     install-server: false
     
   snaps: []
+  
+  # Do NOT install additional packages - use source selection instead
   packages: []
   
   # Disable snap services instead of removing
@@ -566,11 +568,11 @@ def cleanup_paths(paths: List[Path]):
         try:
             if path.exists():
                 if path.is_dir():
-                    # Try to unmount if it's a mount point
+                    # Try to unmount if it's a mount point (suppress errors)
                     run_command(
                         ["sudo", "umount", str(path)],
                         check=False,
-                        capture_output=False
+                        capture_output=True  # Capture to suppress expected errors
                     )
                     
                     # Remove directory tree
@@ -615,7 +617,7 @@ Examples:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
     
-    logger.info("Ubuntu ISO Remastering Tool - Version 0.03.0-production")
+    logger.info("Ubuntu ISO Remastering Tool - Version 0.03.1-production")
     logger.info("=" * 70)
     
     # Paths to use
