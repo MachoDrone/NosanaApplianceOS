@@ -1,50 +1,48 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version (remaster2.py)
-Version: 0.02.10-proxy-fix
+Version: 0.02.11-proxy-mirror-test-fix
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
-This version fixes the proxy mirror test UI issue and ISO creation problems.
+This version properly enables proxy mirror testing by removing ALL apt/proxy/updates configuration from autoinstall.
 """
 
 import os
 import sys
 import subprocess
 
-# Inline autoinstall configuration files - FIXED VERSION
+# Inline autoinstall configuration files - MINIMAL VERSION FOR PROXY TESTING
 AUTOINSTALL_USER_DATA = """#cloud-config
 autoinstall:
   version: 1
   
-  # Interactive sections - user can configure these
+  # Interactive sections - let user configure everything
   interactive-sections:
     - locale
-    - keyboard
+    - keyboard  
     - network
     - proxy
+    - apt
     - storage
     - identity
     - ubuntu-pro
     - drivers
   
-  # Force minimal server installation from the start
+  # Only force the absolute minimum - don't touch proxy or apt at all
   source:
     id: ubuntu-server-minimal
     search_drivers: true
   
-  # Force these specific values (should skip their screens entirely)  
   ssh:
     install-server: false
     
   snaps: []
-  
-  # Do NOT install additional packages - use source selection instead
   packages: []
   
-  updates: security
+  # Don't configure updates - let the installer handle it naturally
+  # updates: security  # REMOVED - this can interfere with mirror testing
   
-  # Simple cleanup after installation
   late-commands:
     - echo "AUTOINSTALL SUCCESS" > /target/var/log/autoinstall-success.log
     
@@ -547,11 +545,11 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.10-proxy-fix (remaster2.py)")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.11-proxy-mirror-test-fix (remaster2.py)")
     print("==================================================================")
-    print("✅ INTERACTIVE SCREENS: All orange menu screens will be shown")
-    print("✅ PROXY MIRROR TEST: Should work properly in proxy configuration screen")
-    print("✅ ISO CREATION FIX: Multiple fallback methods for successful ISO creation")
+    print("✅ FIXED: Added 'apt' to interactive sections for proper mirror testing")
+    print("✅ FIXED: Removed ALL apt/proxy/updates configuration from autoinstall")
+    print("✅ PROXY MIRROR TEST: Should now work properly in proxy configuration screen")
     print("==================================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
