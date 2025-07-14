@@ -1,0 +1,47 @@
+#cloud-config
+autoinstall:
+  version: 1
+  
+  # Interactive sections - user can configure these
+  interactive-sections:
+    - locale
+    - keyboard
+    - network
+    - proxy
+    - storage
+    - identity
+    - ubuntu-pro
+    - drivers
+  
+  # Explicitly configure proxy section to use full interactive mode
+  proxy: ~
+  
+  # Don't configure apt at all - let installer handle mirrors naturally
+  # This prevents autoinstall from interfering with proxy/mirror testing
+  apt:
+    disable_components: []
+    preserve_sources_list: true
+  
+  # Force minimal server installation
+  source:
+    id: ubuntu-server-minimal
+    search_drivers: true
+  
+  # Force these specific values (should skip their screens entirely)  
+  ssh:
+    install-server: false
+    allow-pw: false
+    authorized-keys: []
+    
+  snaps: []
+  
+  # Use source selection instead of packages
+  packages: []
+  
+  updates: security
+  
+  # Simple cleanup after installation
+  late-commands:
+    - echo "AUTOINSTALL SUCCESS - SSH disabled, minimal server installed" > /target/var/log/autoinstall-success.log
+    
+  shutdown: reboot
