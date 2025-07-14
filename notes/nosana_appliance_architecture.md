@@ -11,7 +11,7 @@ _Last updated: 2025-07-14_
    • tail Docker logs / restart containers
    • dispatch pre-scripted commands (e.g. `wget … | bash`) securely
 3. Fleet should be **immutable by default** – base OS read-only, declarative updates – yet allow operators to add custom workflows via containers.
-4. Secure, zero-trust connectivity out-of-the-box. Each host carries a private key that we (Nosana) can never read.
+4. Secure, zero-trust connectivity out-of-the-box. Each host carries a private key that we (Nosana) can never read – this is the operator’s **Solana wallet JSON** stored at `~/.nosana/nosana_key.json`.
 5. Update channel for built-in software & OS image (add/remove packages, adjust immutable settings) that works for single-node to 50-node fleets.
 
 ---
@@ -20,10 +20,14 @@ _Last updated: 2025-07-14_
 
 | Layer | Recommendation | Rationale |
 |-------|----------------|-----------|
-| Overlay VPN | **WireGuard-based mesh** via Tailscale or Netmaker | • Instant, zero-config NAT traversal<br>• Built-in key management & ACLs<br>• MagicDNS gives each host a predictable FQDN (e.g. `node-12.alice-gpu.ts.net`) |
+| Overlay VPN | **WireGuard-based mesh** (self-hosted Headscale controller or fully static mesh) | • Instant, zero-config NAT traversal<br>• Operators keep full control; **no third-party accounts or sign-ups**<br>• Headscale namespace (MagicDNS-compatible) gives each host a predictable FQDN (e.g. `node-12.gpu-farm.myfleet`) |
 | Rendezvous / bootstrap | Operators receive a single-use auth key (environment variable or QR) they copy into the private config file. On first boot the host: <br>1. brings up WireGuard <br>2. registers itself (hostname, GPU inventory, public key, software version) to a lightweight registry (e.g. NATS JetStream or etcd) running **inside** the overlay | Avoids public IPs, scales to many operators, does not reveal topology to Nosana. |
 
 Once on the mesh each node can reach all others privately; no inbound firewall holes required.
+
+_Why Headscale?_  Headscale is the open-source control-plane for the Tailscale protocol.  We can ship it as a lightweight container that automatically starts on the **first** appliance or a tiny VPS the operator controls.  Nodes join with a single-use join key baked into their private config file, so zero interactive setup is needed.
+
+For operators that prefer strictly peer-to-peer, we can fallback to a static WireGuard mesh file (`peers.conf`) generated during manufacturing, but Headscale is strongly recommended for NAT traversal and dynamic membership (add/remove hosts on demand).
 
 ---
 
