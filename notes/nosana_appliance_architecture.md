@@ -10,9 +10,9 @@ _Last updated: 2025-07-14_
    • stream live resource metrics (GPU, CPU, RAM, disk, network)
    • tail Docker logs / restart containers
    • dispatch pre-scripted commands (e.g. `wget … | bash`) securely
-3. Fleet should be **immutable by default** – base OS read-only, declarative updates – yet allow operators to add custom workflows via containers.
+3. Fleet should be **immutable by default** – the core OS and Nosana host software are read-only and update atomically – while still letting operators optionally run **their own Docker containers** (e.g. extra monitoring or personal tools) on a separate writable partition.
 4. Secure, zero-trust connectivity out-of-the-box. Each host carries a private key that we (Nosana) can never read – this is the operator’s **Solana wallet JSON** stored at `~/.nosana/nosana_key.json`.
-5. Update channel for built-in software & OS image (add/remove packages, adjust immutable settings) that works for single-node to 50-node fleets.
+5. Update channel for the OS image and built-in software that scales from 1 to 50 nodes: every host periodically checks a dedicated **GitHub repo** for signed release bundles (scripts, container image versions, config tweaks) and applies them automatically.
 
 ---
 
@@ -28,6 +28,8 @@ Once on the mesh each node can reach all others privately; no inbound firewall h
 _Why Headscale?_  Headscale is the open-source control-plane for the Tailscale protocol.  We can ship it as a lightweight container that automatically starts on the **first** appliance or a tiny VPS the operator controls.  Nodes join with a single-use join key baked into their private config file, so zero interactive setup is needed.
 
 For operators that prefer strictly peer-to-peer, we can fallback to a static WireGuard mesh file (`peers.conf`) generated during manufacturing, but Headscale is strongly recommended for NAT traversal and dynamic membership (add/remove hosts on demand).
+
+_Scope clarification:_  All discovery and overlay networking is **per-operator**.  Nodes owned by different operators never see each other, even if they share the same Headscale server.
 
 ---
 
@@ -58,13 +60,15 @@ Removing packages = ship a new immutable image that simply omits them.
 
 Operators can still run **their own containers** – stored on `/var/lib/docker`, a separate RW partition not touched by system update.
 
+> **Note**: We are _not_ redesigning the Nosana host software itself.  The containers listed below refer to supporting services shipped with the appliance OS; the actual compute agent follows the existing installation steps in [Nosana docs](https://docs.nosana.com/hosts/grid-ubuntu.html).
+
 ---
 
-## 5. Secure Command Dispatch
+## 5. Remote Script Execution (Optional)
 
-• `nosana-agent` verifies every incoming command against a signature derived from the operator’s private key.
-• Pre-scripted commands are small shell snippets stored in a dedicated Git repo (`operator-scripts.git`). Agent only runs commits signed by the operator’s GPG key.
-• Output (stdout/err) streamed back to the requester over the mesh.
+Operators may choose to enable a **“script switchboard”**: small shell scripts stored in the same GitHub repo as the update channel.  Each script is described by a YAML manifest (name, description, command).  When the operator flips a feature switch in the UI, the appliance pulls the script and runs it locally, streaming stdout/err back to the requester over WireGuard.
+
+No third-party accounts are required, and signing is optional—if you prefer added safety we can extend this later with GPG-signed commits.
 
 ---
 
@@ -84,10 +88,9 @@ Operators can still run **their own containers** – stored on `/var/lib/docker`
 
 1. **Key provisioning** – best UX for injecting the per-operator WireGuard key during manufacturing? USB, QR, cloud init?
 2. **Registry location** – should we run a tiny VPS per operator for the NATS/etcd rendezvous, or allow any node to self-elect leader?
-3. **GPU Scheduling** – do we need a lightweight job scheduler (Nomad, k3s) or will Nosana handle per-job GPU selection internally?
-4. **Compliance & audit** – is tamper-evidence (e.g. TPM measured boot, remote attestation) a requirement?
-5. **Offline sites** – how should updates be side-loaded when nodes have no Internet but are on a local mesh?
-6. **Operator UX** – web UI vs. CLI; desire for mobile app?
+3. **Compliance & audit** – is tamper-evidence (e.g. TPM measured boot, remote attestation) a requirement? (future consideration)
+4. **Offline sites** – currently out of scope as hosts are expected to be online.
+5. **Operator UX** – confirm whether touch-friendly buttons are preferred over text inputs on phones.
 
 Feel free to refine these points or add new requirements.
 
