@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version (remaster2.py)
-Version: 0.02.9-minimal-automation
+Version: 0.02.10-proxy-fix
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
@@ -12,29 +12,39 @@ import os
 import sys
 import subprocess
 
-# Inline autoinstall configuration files - MINIMAL AUTOMATION VERSION
+# Inline autoinstall configuration files - FIXED VERSION
 AUTOINSTALL_USER_DATA = """#cloud-config
 autoinstall:
   version: 1
   
-  # Only automate the final installation choices, keep everything else interactive
-  # Force minimal server installation
+  # Interactive sections - user can configure these
+  interactive-sections:
+    - locale
+    - keyboard
+    - network
+    - proxy
+    - storage
+    - identity
+    - ubuntu-pro
+    - drivers
+  
+  # Force minimal server installation from the start
   source:
     id: ubuntu-server-minimal
     search_drivers: true
   
-  # Force these specific values only
+  # Force these specific values (should skip their screens entirely)  
   ssh:
     install-server: false
     
   snaps: []
   
-  # Do NOT install additional packages
+  # Do NOT install additional packages - use source selection instead
   packages: []
   
   updates: security
   
-  # Simple cleanup after installation  
+  # Simple cleanup after installation
   late-commands:
     - echo "AUTOINSTALL SUCCESS" > /target/var/log/autoinstall-success.log
     
@@ -321,9 +331,9 @@ echo "Total packages installed: $(dpkg -l | grep '^ii' | wc -l)"
     else:
         print(f"Warning: {grub_cfg_path} not found")
     
-    print("✓ Minimal autoinstall configuration injected")
-    print("✅ INTERACTIVE MODE: All user configuration screens will be shown")
-    print("✅ PROXY TESTING: Full interactive proxy configuration with mirror testing")
+    print("✓ Autoinstall configuration injected")
+    print("✅ INTERACTIVE SCREENS: All orange menu screens will be shown")
+    print("✅ PROXY MIRROR TEST: Should work in proxy configuration screen")
 
 def inject_hello_files(work_dir, efi_img, mbr_img):
     print("Injected HelloNOS.ESP, HelloNOS.BOOT, HelloNOS.OPT test files.")
@@ -537,12 +547,12 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.9-minimal-automation (remaster2.py)")
-    print("========================================================================")
-    print("✅ MINIMAL AUTOMATION: All user screens interactive, only forces final choices")
-    print("✅ PROXY TESTING: Full interactive proxy configuration with mirror testing")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.10-proxy-fix (remaster2.py)")
+    print("==================================================================")
+    print("✅ INTERACTIVE SCREENS: All orange menu screens will be shown")
+    print("✅ PROXY MIRROR TEST: Should work properly in proxy configuration screen")
     print("✅ ISO CREATION FIX: Multiple fallback methods for successful ISO creation")
-    print("========================================================================")
+    print("==================================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
     print("==================================================================")
