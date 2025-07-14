@@ -68,7 +68,19 @@ Operators can still run **their own containers** – stored on `/var/lib/docker`
 
 ---
 
-## 6. Open Questions / Next Steps
+## 6. UI / Operator Interfaces
+
+| Focus | Approach | Key Points |
+|-------|----------|------------|
+| **6.1 Web Interface** | Progressive Web App (React + Tailwind, served by `nosana-agent`) | • Accessible via HTTPS over WireGuard from any phone or desktop<br>• Mobile-first layout: card view, swipe-friendly actions, dark-mode default<br>• Installs like an app (“Add to Home Screen”) and works offline via ServiceWorker<br>• Same host can serve the UI even when the rest of the fleet is unreachable |
+| **6.2 Local Text UI** | Terminal User Interface (Python Textual or Go BubbleTea) | • Available on the local console (HDMI/keyboard) **and** over SSH<br>• Mirrors all web features: metrics dashboard, logs tail, script launcher<br>• Auto-starts if web UI is unreachable or when no HDMI is present |
+| **6.3 Feature Parity** | Single gRPC/HTTP API | • Both UIs call the same endpoints defined in a shared protobuf<br>• Command catalogue stored in YAML → automatically rendered in both UIs<br>• CI checks ensure new API methods are implemented by both clients before release |
+| **6.4 No External Dependencies** | Served directly from each host | • Static web assets bundled into the `nosana-agent` image<br>• TUI binary shipped alongside the agent; no package installs needed at runtime |
+| **6.5 Mobile-First UX** | Design / Accessibility | • Touch targets ≥ 48 px, readable fonts, high-contrast palette<br>• Network-loss tolerant: caches last 24 h of metrics locally<br>• Quick-action buttons for common scripts (restart container, purge logs) |
+
+---
+
+## 7. Open Questions / Next Steps
 
 1. **Key provisioning** – best UX for injecting the per-operator WireGuard key during manufacturing? USB, QR, cloud init?
 2. **Registry location** – should we run a tiny VPS per operator for the NATS/etcd rendezvous, or allow any node to self-elect leader?
