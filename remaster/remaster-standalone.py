@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version
-Version: 0.02.7-standalone-proxy-v10
+Version: 0.02.7-standalone-minimal-v11
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
@@ -43,15 +43,19 @@ autoinstall:
   # Enable proxy testing by providing sources configuration
   proxy: null
   
-  # Force these specific values (should skip their screens entirely)
+  # Force minimal server installation from the start
+  source:
+    id: ubuntu-server-minimal
+    search_drivers: true
+  
+  # Force these specific values (should skip their screens entirely)  
   ssh:
     install-server: false
     
   snaps: []
   
-  # Install minimal server packages (let installation complete first)
-  packages:
-    - ubuntu-server-minimal
+  # Do NOT install additional packages - use source selection instead
+  packages: []
   
   updates: security
   
@@ -255,9 +259,9 @@ echo "Disabling snapd services..."
 systemctl disable snapd.service snapd.socket snapd.seeded.service 2>/dev/null || true
 systemctl mask snapd.service snapd.socket snapd.seeded.service 2>/dev/null || true
 
-echo "Removing snapd packages..."
+echo "Removing snapd packages (ubuntu-server-minimal should already be the only server package)..."
 apt-get update
-apt-get remove --purge -y snapd ubuntu-server 2>/dev/null || true
+apt-get remove --purge -y snapd 2>/dev/null || true
 apt-get autoremove --purge -y
 apt-get autoclean
 
@@ -547,7 +551,7 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-proxy-v10")
+    print("Ubuntu ISO Remastering Tool - Version 0.02.7-standalone-minimal-v11")
     print("==================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
