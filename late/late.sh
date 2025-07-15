@@ -4,8 +4,11 @@
 # echo; echo; echo ""
 # to spot the command and response in Subuquity late run command.
 
-echo -e "\033[32mThis is a test run of Subiquity late run command.\033[0m"
+printf "\n\n \n"
+printf "\n\ntestmessage\n"
+echo "This is a test run of Subiquity late run command."
 
+echo " " && echo " "
 echo; echo; echo "sleep 3"
 sleep 3
 
