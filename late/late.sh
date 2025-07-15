@@ -15,9 +15,10 @@ sleep 3
 echo; echo; echo "$(date)"
 echo "Current date: $(date)"
 
-echo; echo; echo "apt-get update -y"
-# apt-get update -y
-
+echo " " && echo "curtin in-target -- apt update -y"
+curtin in-target -- apt update -y
+echo " " && echo "curtin in-target -- apt install wget -y"
+curtin in-target -- apt install wget -y
 
 echo; echo; echo "dpkg -l | grep openssh-server"
  dpkg -l | grep openssh-server
