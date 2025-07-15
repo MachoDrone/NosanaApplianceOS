@@ -32,7 +32,8 @@ dpkg -l | grep openssh-server
 
 echo " " && echo " " && echo "-----------Actual subtest.sh--------------"
 for i in {1..3}; do
-  if curtin in-target -- bash -c "wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/late.sh | bash"; then
+  # Download in installer, pipe to target bash
+  if wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest.sh | curtin in-target -- bash; then
     echo "Success!"
     break
   else
@@ -41,9 +42,9 @@ for i in {1..3}; do
   fi
 done
 
-echo " " && echo " " && echo "-----------fake out fails--------------"
 for i in {1..3}; do
-  if curtin in-target -- bash -c "wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest2.bat | bash"; then
+  # Download in installer, pipe to target bash
+  if wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest2.bat | curtin in-target -- bash; then
     echo "Success!"
     break
   else
