@@ -1,15 +1,43 @@
 #!/bin/bash
-echo "$(date)"
+# Instructions:
+# lead all commands with
+# echo; echo; echo ""
+# to spot the command and response in Subuquity late run command.
+
+echo -e "\033[32mThis is a test run of Subiquity late run command.\033[0m"
+
+echo; echo; echo "sleep 3"
+sleep 3
+
+echo; echo; echo "$(date)"
 echo "Current date: $(date)"
 
+echo; echo; echo "apt-get update -y"
 apt-get update -y
 
-dpkg -l | grep openssh
-apt install openssh-server -y
-#dpkg -l | grep openssh-server
-dpkg -l | grep openssh
 
-# retry logic test
+echo; echo; echo "dpkg -l | grep openssh-server"
+dpkg -l | grep openssh-server
+
+echo; echo; echo "apt install openssh-server -y"
+apt install openssh-server -y
+
+echo; echo; echo "dpkg -l | grep openssh-server"
+dpkg -l | grep openssh-server
+
+
+echo; echo; echo "retry logic test"
+for i in {1..3}; do
+  if wget -O /tmp/BadLink.sh https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/BadLink.sh; then
+    bash /tmp/BadLink.sh && break
+  else
+    echo "Attempt $i failed, retrying in 10 seconds..."
+    sleep 10
+  fi
+done
+
+
+echo; echo; echo "Actual subtest.sh"
 for i in {1..3}; do
   if wget -O /tmp/subtest.sh https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest.sh; then
     bash /tmp/subtest.sh && break
@@ -18,7 +46,6 @@ for i in {1..3}; do
     sleep 10
   fi
 done
-
 
 #wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest.sh | bash
 
