@@ -24,7 +24,7 @@ echo; echo; echo "dpkg -l | grep openssh-server"
  dpkg -l | grep openssh-server
 
 echo; echo; echo "apt install openssh-server -y"
-#napt install openssh-server -y
+curtin in-target -- apt install openssh-server -y
 
 echo; echo; echo "dpkg -l | grep openssh-server"
 dpkg -l | grep openssh-server
