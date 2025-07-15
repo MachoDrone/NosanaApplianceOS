@@ -31,9 +31,22 @@ dpkg -l | grep openssh-server
 
 
 echo " " && echo " " && echo "-----------Actual subtest.sh--------------"
+echo " " && echo " " && echo "-----------Actual subtest.sh--------------"
 for i in {1..3}; do
   if curtin in-target -- wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest.sh | bash; then
-    echo " "
+    echo "Success!"
+    break
+  else
+    echo "Attempt $i failed, retrying in 10 seconds..."
+    sleep 10
+  fi
+done
+
+echo " " && echo " " && echo "-----------fake out fails--------------"
+for i in {1..3}; do
+  if curtin in-target -- wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest2.bat | bash; then
+    echo "Success!"
+    break
   else
     echo "Attempt $i failed, retrying in 10 seconds..."
     sleep 10
