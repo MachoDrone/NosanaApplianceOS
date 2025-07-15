@@ -7,9 +7,9 @@ echo "$(date)"
 echo "Current date: $(date)"
 
 echo " " && echo " "
-curtin in-target -- dpkg -l | grep iputils-ping
+dpkg -l | grep iputils-ping
 echo; echo
 #curtin in-target -- apt install iputils-ping -y
 echo; echo
-curtin in-target -- dpkg -l | grep iputils-ping
+dpkg -l | grep iputils-ping
 echo; echo
