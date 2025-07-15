@@ -6,10 +6,10 @@ echo; echo
 echo "$(date)"
 echo "Current date: $(date)"
 
-echo; echo
+echo " " && echo " "
 dpkg -l | grep iputils-ping
 echo; echo
-# apt install iputils-ping -y
+apt install iputils-ping -y
 echo; echo
 dpkg -l | grep iputils-ping
 echo; echo
