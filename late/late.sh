@@ -1,8 +1,12 @@
 #!/bin/bash
+echo "$(date)"
+echo "Current date: $(date)"
+
 apt-get update -y
+
 dpkg -l | grep openssh
 apt install openssh-server -y
-dpkg -l | grep openssh-server
+#dpkg -l | grep openssh-server
 dpkg -l | grep openssh
 
 # retry logic test
