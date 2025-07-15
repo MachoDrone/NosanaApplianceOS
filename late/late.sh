@@ -16,14 +16,14 @@ echo; echo; echo "$(date)"
 echo "Current date: $(date)"
 
 echo; echo; echo "apt-get update -y"
-apt-get update -y
+# apt-get update -y
 
 
 echo; echo; echo "dpkg -l | grep openssh-server"
-dpkg -l | grep openssh-server
+ dpkg -l | grep openssh-server
 
 echo; echo; echo "apt install openssh-server -y"
-apt install openssh-server -y
+#napt install openssh-server -y
 
 echo; echo; echo "dpkg -l | grep openssh-server"
 dpkg -l | grep openssh-server
