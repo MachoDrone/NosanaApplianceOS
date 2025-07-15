@@ -1,15 +1,21 @@
 #!/bin/bash
-echo; echo
-echo -e "\033[32mThis is a test run of sub script.\033[0m"
+# Instructions:
+# lead all commands with
+# echo " " && echo " " && echo " "
+# to easily spot the commands and the responses in Subuquity late run command.
+echo " " && echo " " && echo "curtin in-target -- dpkg -l | grep openssh-server"
+curtin in-target -- dpkg -l | grep openssh-server
 
-echo; echo
-echo "$(date)"
-echo "Current date: $(date)"
+echo -----------------------------------------------------------
+echo " " && echo " " && echo "This is a test run of sub script."
 
-echo " " && echo " "
-dpkg -l | grep iputils-ping
-echo; echo
-#curtin in-target -- apt install iputils-ping -y
-echo; echo
-dpkg -l | grep iputils-ping
-echo; echo
+echo " " && echo " " && echo "curtin in-target -- dpkg -l | grep iputils-ping"
+curtin in-target -- dpkg -l | grep iputils-ping
+
+echo " " && echo " " && echo "curtin in-target -- apt install iputils-ping -y"
+curtin in-target -- apt install iputils-ping -y
+
+echo " " && echo " " && echo "curtin in-target -- dpkg -l | grep iputils-ping"
+curtin in-target -- dpkg -l | grep iputils-ping
+
+echo " " && echo " " 
