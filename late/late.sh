@@ -25,4 +25,4 @@ echo " " && echo " " && echo "curtin in-target -- dpkg -l | grep openssh-server"
 curtin in-target -- dpkg -l | grep openssh-server
 
 echo " " && echo " " && echo "curtin in-target -- wget and execute subtest.sh"
-wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest.sh | curtin in-target -- bash
+wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest.sh | bash
