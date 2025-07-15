@@ -18,6 +18,5 @@ curtin in-target -- apt install openssh-server -y
 echo " " && echo " " && echo "curtin in-target -- dpkg -l | grep openssh-server"
 curtin in-target -- dpkg -l | grep openssh-server
 
-echo " " && echo " " && echo "Download script to installer, copy to target, execute"
-wget -O /tmp/subtest.sh https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest.sh
-cat /tmp/subtest.sh | curtin in-target -- sh -c "cat > /tmp/subtest.sh && bash /tmp/subtest.sh"
+echo " " && echo " " && echo "curtin in-target -- wget and execute subtest.sh"
+wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/subtest.sh | curtin in-target -- bash
