@@ -2,11 +2,12 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version (remaster7.py)
-Version: 0.07.0-firstboot
+Version: 0.07.1-firstboot-fixed
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
 This version adds a first boot script that runs on the installed system's first boot.
+FIXED: YAML formatting in late-commands for proper autoinstall validation
 """
 
 import os
@@ -48,44 +49,50 @@ autoinstall:
     - echo "AUTOINSTALL SUCCESS" > /target/var/log/autoinstall-success.log
     - wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/late.sh | bash
     # Create first boot script
-    - echo '#!/bin/bash' > /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'trap "" SIGINT SIGTERM SIGHUP SIGQUIT' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'clear' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'echo "================================================================================"' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'echo "                        NosanaAOS First Boot Setup"' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'echo "================================================================================"' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'echo ""' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'echo "IMPORTANT: Do not power off or interrupt this process!"' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'echo ""' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'if [ -f /var/lib/nosana/firstboot.done ]; then exit 0; fi' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'mkdir -p /var/lib/nosana' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'echo "Waiting for network..."' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'for i in {1..30}; do if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then break; fi; sleep 2; done' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'echo "Downloading and running setup script..."' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'wget -O- https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/1stb/1stb.sh | bash' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'touch /var/lib/nosana/firstboot.done' >> /target/usr/local/bin/nosana-firstboot.sh
-    - echo 'systemctl disable nosana-firstboot.service' >> /target/usr/local/bin/nosana-firstboot.sh
+    - |
+      cat > /target/usr/local/bin/nosana-firstboot.sh << 'EOF'
+      #!/bin/bash
+      trap "" SIGINT SIGTERM SIGHUP SIGQUIT
+      clear
+      echo "================================================================================"
+      echo "                        NosanaAOS First Boot Setup"
+      echo "================================================================================"
+      echo ""
+      echo "IMPORTANT: Do not power off or interrupt this process!"
+      echo ""
+      if [ -f /var/lib/nosana/firstboot.done ]; then exit 0; fi
+      mkdir -p /var/lib/nosana
+      echo "Waiting for network..."
+      for i in {1..30}; do if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then break; fi; sleep 2; done
+      echo "Downloading and running setup script..."
+      wget -O- https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/1stb/1stb.sh | bash
+      touch /var/lib/nosana/firstboot.done
+      systemctl disable nosana-firstboot.service
+      EOF
     - chmod +x /target/usr/local/bin/nosana-firstboot.sh
     # Create systemd service for first boot
-    - echo '[Unit]' > /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'Description=NosanaAOS First Boot Setup' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'After=network-online.target' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'Wants=network-online.target' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'Before=getty@tty1.service' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo '' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo '[Service]' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'Type=oneshot' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'ExecStart=/usr/local/bin/nosana-firstboot.sh' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'RemainAfterExit=yes' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'StandardOutput=tty' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'StandardInput=tty' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'StandardError=tty' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'TTYPath=/dev/tty1' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'TTYReset=yes' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'TTYVHangup=yes' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo '' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo '[Install]' >> /target/etc/systemd/system/nosana-firstboot.service
-    - echo 'WantedBy=multi-user.target' >> /target/etc/systemd/system/nosana-firstboot.service
+    - |
+      cat > /target/etc/systemd/system/nosana-firstboot.service << 'EOF'
+      [Unit]
+      Description=NosanaAOS First Boot Setup
+      After=network-online.target
+      Wants=network-online.target
+      Before=getty@tty1.service
+      
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/nosana-firstboot.sh
+      RemainAfterExit=yes
+      StandardOutput=tty
+      StandardInput=tty
+      StandardError=tty
+      TTYPath=/dev/tty1
+      TTYReset=yes
+      TTYVHangup=yes
+      
+      [Install]
+      WantedBy=multi-user.target
+      EOF
     - systemctl --root=/target enable nosana-firstboot.service
     
   shutdown: reboot
@@ -587,11 +594,12 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.07.0-firstboot (remaster7.py)")
+    print("Ubuntu ISO Remastering Tool - Version 0.07.1-firstboot-fixed (remaster7.py)")
     print("================================================================")
     print("✅ NEW: First boot script that runs on installed system")
     print("✅ PROXY MIRROR TEST: Interactive proxy configuration with mirror testing")
     print("✅ LATE SCRIPT: Runs /late/late.sh during installation completion")
+    print("✅ FIXED v0.07.1: YAML formatting in late-commands")
     print("================================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
