@@ -175,7 +175,7 @@ set default=0
 
 menuentry "Install Ubuntu Server (Semi-Automated)" {
     set gfxpayload=keep
-    linux /casper/vmlinuz autoinstall ds=nocloud;s=file:///cdrom/server/ console=tty0 console=ttyS0,115200n8
+    linux /casper/vmlinuz autoinstall 'ds=nocloud;s=/cdrom/server/' console=tty0 console=ttyS0,115200n8
     initrd /casper/initrd
 }
 
