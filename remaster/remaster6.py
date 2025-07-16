@@ -2,12 +2,12 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version (remaster6.py)
-Version: 0.06.5-firstboot-separateparams
+Version: 0.06.6-firstboot-finalseed
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
 This version includes an automatic first boot script that runs after installation and cannot be interrupted.
-FIXED: Ubuntu 24.04 uses separate kernel parameters instead of semicolon syntax
+FIXED: Ubuntu 24.04 exact format with seed= parameter
 """
 
 import os
@@ -170,13 +170,13 @@ AUTOINSTALL_META_DATA = """instance-id: ubuntu-autoinstall
 local-hostname: ubuntu-server
 """
 
-# Fixed GRUB configuration for Ubuntu 24.04 - separate parameters
+# Fixed GRUB configuration for Ubuntu 24.04 - exact documented format
 GRUB_AUTOINSTALL_CFG = """set timeout=30
 set default=0
 
 menuentry "Install Ubuntu Server (Semi-Automated)" {
     set gfxpayload=keep
-    linux /casper/vmlinuz autoinstall ds=nocloud s=/cdrom/server/ console=tty0 console=ttyS0,115200n8
+    linux /casper/vmlinuz autoinstall ds=nocloud seed=/cdrom/server/ console=tty0 console=ttyS0,115200n8
     initrd /casper/initrd
 }
 
@@ -662,14 +662,14 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.06.5-firstboot-separateparams (remaster6.py)")
+    print("Ubuntu ISO Remastering Tool - Version 0.06.6-firstboot-finalseed (remaster6.py)")
     print("================================================================")
     print("✅ NEW: Automatic first boot script that cannot be interrupted")
     print("✅ FIRST BOOT: Shows live progress and blocks PC usage until complete")
     print("✅ SCRIPT URL: Runs 1stb.sh from GitHub on first boot after install")
     print("✅ PROXY MIRROR TEST: Interactive proxy configuration with mirror testing")
     print("✅ LATE SCRIPT: Runs /late/late.sh during installation completion")
-    print("✅ FIXED v0.06.5: Separate params: ds=nocloud s=/cdrom/server/")
+    print("✅ FIXED v0.06.6: FINAL FIX - ds=nocloud seed=/cdrom/server/")
     print("================================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
