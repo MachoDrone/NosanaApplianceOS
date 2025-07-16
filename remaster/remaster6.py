@@ -2,12 +2,12 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version (remaster6.py)
-Version: 0.06.6-firstboot-finalseed
+Version: 0.06.7-firstboot-revert
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
 This version includes an automatic first boot script that runs after installation and cannot be interrupted.
-FIXED: Ubuntu 24.04 exact format with seed= parameter
+FIXED: Reverted GRUB to original working format, fixed late-commands YAML
 """
 
 import os
@@ -47,96 +47,34 @@ autoinstall:
   
   late-commands:
     - echo "AUTOINSTALL SUCCESS" > /target/var/log/autoinstall-success.log
-    # Create the first boot script runner
-    - |
-      cat > /target/usr/local/bin/nosana-firstboot.sh << 'FIRSTBOOT_SCRIPT'
+    - curtin in-target --target=/target -- mkdir -p /usr/local/bin
+    - curtin in-target --target=/target -- mkdir -p /etc/systemd/system
+    - curtin in-target --target=/target -- bash -c 'cat > /usr/local/bin/nosana-firstboot.sh' < /dev/stdin <<'FIRSTBOOT_EOF'
       #!/bin/bash
-      
-      # NosanaAOS First Boot Script Runner
-      # This script runs once on first boot and cannot be interrupted
-      
-      # Set up signal trapping to prevent interruption
       trap '' SIGINT SIGTERM SIGHUP SIGQUIT
-      
-      # Function to show progress
-      show_progress() {
-          echo -e "\033[2J\033[H"  # Clear screen
-          echo "================================================================================"
-          echo "                        NosanaAOS First Boot Setup"
-          echo "================================================================================"
-          echo ""
-          echo "Status: $1"
-          echo ""
-          echo "Progress:"
-          echo "$2"
-          echo ""
-          echo "================================================================================"
-          echo "IMPORTANT: Do not power off or interrupt this process!"
-          echo "The system will automatically continue when setup is complete."
-          echo "================================================================================"
-      }
-      
-      # Redirect all output to both console and log
       exec > >(tee -a /var/log/nosana-firstboot.log)
       exec 2>&1
-      
-      # Start
-      show_progress "Starting first boot setup..." "Initializing..."
-      
-      # Check if we've already run
+      echo "NosanaAOS First Boot Setup Starting..."
       if [ -f /var/lib/nosana/firstboot.done ]; then
           echo "First boot setup already completed."
           exit 0
       fi
-      
-      # Create state directory
       mkdir -p /var/lib/nosana
-      
-      # Ensure network is up
-      show_progress "Waiting for network..." "Checking network connectivity..."
       for i in {1..30}; do
           if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
               break
           fi
           sleep 2
       done
-      
-      # Download and run the main first boot script
-      show_progress "Downloading setup script..." "Fetching from GitHub..."
-      
-      SCRIPT_URL="https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/1stb/1stb.sh"
-      
-      # Try wget with progress
-      if command -v wget >/dev/null 2>&1; then
-          show_progress "Downloading setup script..." "Using wget..."
-          wget --progress=bar:force -O- "$SCRIPT_URL" 2>&1 | while IFS= read -r line; do
-              if [[ "$line" =~ [0-9]+% ]]; then
-                  show_progress "Downloading setup script..." "Progress: $line"
-              fi
-          done | bash
-      else
-          # Fallback to curl
-          show_progress "Downloading setup script..." "Using curl..."
-          curl -L "$SCRIPT_URL" | bash
-      fi
-      
-      # Mark as complete
+      echo "Downloading and running first boot script..."
+      wget -O- https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/1stb/1stb.sh | bash
       touch /var/lib/nosana/firstboot.done
-      
-      show_progress "First boot setup complete!" "System will continue in 5 seconds..."
-      sleep 5
-      
-      # Remove the service to prevent running again
       systemctl disable nosana-firstboot.service
       rm -f /etc/systemd/system/nosana-firstboot.service
-      
-      # Continue with normal boot
       systemctl start multi-user.target
-      FIRSTBOOT_SCRIPT
-    - chmod +x /target/usr/local/bin/nosana-firstboot.sh
-    # Create systemd service for first boot
-    - |
-      cat > /target/etc/systemd/system/nosana-firstboot.service << 'FIRSTBOOT_SERVICE'
+      FIRSTBOOT_EOF
+    - curtin in-target --target=/target -- chmod +x /usr/local/bin/nosana-firstboot.sh
+    - curtin in-target --target=/target -- bash -c 'cat > /etc/systemd/system/nosana-firstboot.service' < /dev/stdin <<'SERVICE_EOF'
       [Unit]
       Description=NosanaAOS First Boot Setup
       After=network-online.target
@@ -144,7 +82,6 @@ autoinstall:
       Before=getty@tty1.service
       Before=multi-user.target
       DefaultDependencies=no
-      
       [Service]
       Type=oneshot
       ExecStart=/usr/local/bin/nosana-firstboot.sh
@@ -155,12 +92,10 @@ autoinstall:
       TTYPath=/dev/tty1
       TTYReset=yes
       TTYVHangup=yes
-      
       [Install]
       WantedBy=sysinit.target
-      FIRSTBOOT_SERVICE
-    - systemctl --root=/target enable nosana-firstboot.service
-    # Also run the late.sh script as before
+      SERVICE_EOF
+    - curtin in-target --target=/target -- systemctl enable nosana-firstboot.service
     - wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/late.sh | bash
     
   shutdown: reboot
@@ -170,13 +105,13 @@ AUTOINSTALL_META_DATA = """instance-id: ubuntu-autoinstall
 local-hostname: ubuntu-server
 """
 
-# Fixed GRUB configuration for Ubuntu 24.04 - exact documented format
+# Fixed GRUB configuration with proper console parameters for UI rendering
 GRUB_AUTOINSTALL_CFG = """set timeout=30
 set default=0
 
 menuentry "Install Ubuntu Server (Semi-Automated)" {
     set gfxpayload=keep
-    linux /casper/vmlinuz autoinstall ds=nocloud seed=/cdrom/server/ console=tty0 console=ttyS0,115200n8
+    linux /casper/vmlinuz autoinstall ds=nocloud;s=file:///cdrom/server/ console=tty0 console=ttyS0,115200n8
     initrd /casper/initrd
 }
 
@@ -662,14 +597,14 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.06.6-firstboot-finalseed (remaster6.py)")
+    print("Ubuntu ISO Remastering Tool - Version 0.06.7-firstboot-revert (remaster6.py)")
     print("================================================================")
     print("✅ NEW: Automatic first boot script that cannot be interrupted")
     print("✅ FIRST BOOT: Shows live progress and blocks PC usage until complete")
     print("✅ SCRIPT URL: Runs 1stb.sh from GitHub on first boot after install")
     print("✅ PROXY MIRROR TEST: Interactive proxy configuration with mirror testing")
     print("✅ LATE SCRIPT: Runs /late/late.sh during installation completion")
-    print("✅ FIXED v0.06.6: FINAL FIX - ds=nocloud seed=/cdrom/server/")
+    print("✅ FIXED v0.06.7: Reverted GRUB, fixed late-commands YAML syntax")
     print("================================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
