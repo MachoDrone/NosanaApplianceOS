@@ -2,11 +2,12 @@
 #!/usr/bin/env python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version (remaster6.py)
-Version: 0.06.0-firstboot
+Version: 0.06.1-firstboot-fixed
 
 Purpose: Downloads and remasters Ubuntu ISOs (22.04.2+, hybrid MBR+EFI, and more in future). All temp files are in the current directory. Use -dc to disable cleanup. Use -hello to inject and verify test files. Use -autoinstall to inject semi-automated installer configuration.
 
 This version includes an automatic first boot script that runs after installation and cannot be interrupted.
+FIXED: Proper GRUB datasource parameter quoting for cloud-init
 """
 
 import os
@@ -661,13 +662,14 @@ def remaster_ubuntu_2204(dc_disable_cleanup, inject_hello, inject_autoinstall):
     return True
 
 def main():
-    print("Ubuntu ISO Remastering Tool - Version 0.06.0-firstboot (remaster6.py)")
+    print("Ubuntu ISO Remastering Tool - Version 0.06.1-firstboot-fixed (remaster6.py)")
     print("================================================================")
     print("✅ NEW: Automatic first boot script that cannot be interrupted")
     print("✅ FIRST BOOT: Shows live progress and blocks PC usage until complete")
     print("✅ SCRIPT URL: Runs 1stb.sh from GitHub on first boot after install")
     print("✅ PROXY MIRROR TEST: Interactive proxy configuration with mirror testing")
     print("✅ LATE SCRIPT: Runs /late/late.sh during installation completion")
+    print("✅ FIXED: GRUB datasource parameter properly quoted for cloud-init")
     print("================================================================")
     print("NOTE: This script requires sudo privileges for file permission handling")
     print("Make sure you can run sudo commands when prompted")
