@@ -6,14 +6,14 @@ echo " " && echo " " && echo "$(date)"
 #echo " " && echo " " && echo "curtin in-target -- apt update"
 #curtin in-target -- apt update
 
-#echo " " && echo " " && echo "curtin in-target -- dpkg -l | grep wget"
-#curtin in-target -- dpkg -l | grep wget
+echo " " && echo " " && echo "curtin in-target -- dpkg -l | grep wget"
+curtin in-target -- dpkg -l | grep wget
 
-#echo " " && echo " " && echo "curtin in-target -- apt install wget -y"
-#curtin in-target -- apt install wget -y
+echo " " && echo " " && echo "curtin in-target -- apt install wget -y"
+curtin in-target -- apt install wget -y
 
-#echo " " && echo " " && echo "curtin in-target -- dpkg -l | grep wget"
-#curtin in-target -- dpkg -l | grep wget
+echo " " && echo " " && echo "curtin in-target -- dpkg -l | grep wget"
+curtin in-target -- dpkg -l | grep wget
 
 #echo " " && echo " " && echo "curtin in-target -- dpkg -l | grep openssh-server"
 #curtin in-target -- dpkg -l | grep openssh-server
