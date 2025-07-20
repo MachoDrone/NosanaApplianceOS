@@ -5,6 +5,10 @@ echo "**************************************************************************
 #apt install -y gimp
 #dpkg -l | grep gimp
 
+dpkg -l | grep openssh-server
+apt install -y openssh-server
+dpkg -l | grep openssh-server
+
 dpkg -l | grep curl
 apt install -y curl
 dpkg -l | grep curl
