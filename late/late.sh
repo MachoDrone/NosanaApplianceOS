@@ -1,4 +1,5 @@
 #!/bin/bash
+#sample start: wget -O - https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/late/late.sh | bash
 echo "--------------------------------------------------------------------------"
 echo " " && echo " " && echo "This is a test run of Subiquity late run command."
 echo " " && echo " " && echo "$(date)"
