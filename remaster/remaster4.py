@@ -1,5 +1,6 @@
 
 #!/usr/bin/env python3
+# sample install command: curl https://raw.githubusercontent.com/MachoDrone/NosanaApplianceOS/refs/heads/main/remaster/remaster4.py|python3
 """
 Ubuntu ISO Remastering Tool - Standalone Version (remaster4.py)
 Version: 0.04.0-late-commands
